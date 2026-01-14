@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Contactless Fingerprint</string>
+    <string name="camera_preview">Camera Preview</string>
+    <string name="capture_finger">Capture Finger</string>
+    <string name="quality_check">Quality Check</string>
+    <string name="enhance_image">Enhance Image</string>
+    <string name="match_fingerprint">Match Fingerprint</string>
+    <string name="quality_pass">Quality: PASS</string>
+    <string name="quality_fail">Quality: FAIL</string>
+    <string name="position_finger">Position your finger in the frame</string>
+    <string name="finger_detected">Finger Detected</string>
+    <string name="finger_not_detected">Finger Not Detected</string>
+    <string name="blur_score">Blur Score: %1$.2f</string>
+    <string name="illumination_score">Illumination: %1$.2f</string>
+    <string name="coverage_score">Coverage: %1$.2f</string>
+    <string name="overall_quality">Overall Quality: %1$.2f</string>
+    <string name="match">Match</string>
+    <string name="no_match">No Match</string>
+    <string name="similarity_score">Similarity: %1$.2f</string>
+</resources>
