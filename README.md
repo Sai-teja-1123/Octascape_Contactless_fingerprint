@@ -1,4 +1,4 @@
-# Contactless Fingerprint Challenge
+# Octascape_Contactless_fingerprint
 
 Android application for contactless fingerprint capture, quality assessment, enhancement, and matching.
 
@@ -42,7 +42,7 @@ app/
 
 ### Track A - Capture & Quality Assessment
 - Live camera preview
-- Finger detection/segmentation
+- Real-time finger detection
 - Quality indicators:
   - Blur/focus score
   - Illumination check
@@ -105,6 +105,6 @@ app/
 ## Submission
 
 - **APK**: Built and ready for submission
-- **GitHub URL**: [To be added]
+- **GitHub URL**: https://github.com/Sai-teja-1123/Octascape_Contactless_fingerprint
 - **Technical Note**: [To be added]
 - **Demo Video**: [Optional]
