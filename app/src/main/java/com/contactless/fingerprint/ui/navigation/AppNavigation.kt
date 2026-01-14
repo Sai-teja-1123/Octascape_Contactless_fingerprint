@@ -56,6 +56,7 @@ fun AppNavigation(
 
         composable(Screen.Quality.route) {
             QualityScreen(
+                capturedBitmap = capturedBitmap,
                 qualityResult = qualityResult,
                 onBackClick = {
                     // Clear captured data when going back

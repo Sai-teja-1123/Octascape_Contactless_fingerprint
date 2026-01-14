@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.contactless.fingerprint.camera.CameraManager
 import com.contactless.fingerprint.quality.QualityAssessor
+import com.contactless.fingerprint.enhancement.ImageEnhancer
 import com.contactless.fingerprint.ui.components.CameraPreview
 import com.contactless.fingerprint.utils.PermissionHandler
 import com.contactless.fingerprint.utils.rememberCameraPermissionLauncher
@@ -37,6 +38,7 @@ fun CameraScreen(
     val context = LocalContext.current
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val qualityAssessor = remember { QualityAssessor() }
+    val imageEnhancer = remember { ImageEnhancer() }
     val coroutineScope = rememberCoroutineScope()
     
     var hasPermission by remember { mutableStateOf(PermissionHandler.hasCameraPermission(context)) }
@@ -344,15 +346,22 @@ fun CameraScreen(
                             isCapturing = true
                             cameraManager?.captureImage(previewView!!, mainExecutor) { bitmap ->
                                 if (bitmap != null) {
-                                    Log.d("CameraScreen", "Image captured, assessing quality...")
-                                    // Run quality assessment on background thread to avoid blocking UI
+                                    Log.d("CameraScreen", "Image captured, running enhancement + quality assessment...")
+                                    // Run enhancement + quality assessment on background thread to avoid blocking UI
                                     coroutineScope.launch(Dispatchers.Default) {
-                                        val qualityResult = qualityAssessor.assessQuality(bitmap)
+                                        // Track B: enhance captured image using OpenCV
+                                        // Pass preview dimensions for accurate box matching
+                                        val previewWidth = previewView?.width
+                                        val previewHeight = previewView?.height
+                                        val enhancedBitmap = imageEnhancer.enhanceImage(bitmap, previewWidth, previewHeight)
+
+                                        val qualityResult = qualityAssessor.assessQuality(enhancedBitmap)
                                         Log.d("CameraScreen", "Quality assessed: ${qualityResult.overallScore}")
                                         // Switch back to main thread to update UI
                                         withContext(Dispatchers.Main) {
                                             isCapturing = false
-                                            onCaptureClick(bitmap, qualityResult)
+                                            // Downstream flows (quality screen, later matching) use enhanced image
+                                            onCaptureClick(enhancedBitmap, qualityResult)
                                         }
                                     }
                                 } else {

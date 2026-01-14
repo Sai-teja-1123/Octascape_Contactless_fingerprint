@@ -49,7 +49,7 @@ class CameraManager(private val context: Context) {
             cameraProviderFuture.addListener({
                 try {
                     cameraProvider = cameraProviderFuture.get()
-                    
+
                     preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
@@ -290,44 +290,44 @@ class CameraManager(private val context: Context) {
         }
 
         try {
-            // Refocus before capture and wait for focus to complete
+            // Trigger focus once, then capture (reduced delays to avoid motion blur)
             focusAtCenter(previewView, executor) {
-                // Focus completed, wait additional time for stabilization, then capture
+                // Focus completed, wait for stabilization, then capture
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    val outputDir = context.cacheDir
-                    val photoFile = java.io.File.createTempFile("finger_capture_", ".jpg", outputDir)
+                            val outputDir = context.cacheDir
+                            val photoFile = java.io.File.createTempFile("finger_capture_", ".jpg", outputDir)
 
-                    val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+                            val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
-                    imageCapture.takePicture(
-                        outputOptions,
-                        executor,
-                        object : ImageCapture.OnImageSavedCallback {
-                            override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                try {
-                                    val bitmap = android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath)
-                                    if (bitmap != null) {
-                                        onImageCaptured(bitmap)
-                                    } else {
-                                        Log.e("CameraManager", "Decoded bitmap is null")
-                                        onImageCaptured(null)
+                            imageCapture.takePicture(
+                                outputOptions,
+                                executor,
+                                object : ImageCapture.OnImageSavedCallback {
+                                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                        try {
+                                            val bitmap = android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath)
+                                            if (bitmap != null) {
+                                                onImageCaptured(bitmap)
+                                            } else {
+                                                Log.e("CameraManager", "Decoded bitmap is null")
+                                                onImageCaptured(null)
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("CameraManager", "Error decoding saved image: ${e.message}", e)
+                                            onImageCaptured(null)
+                                        } finally {
+                                            photoFile.delete()
+                                        }
                                     }
-                                } catch (e: Exception) {
-                                    Log.e("CameraManager", "Error decoding saved image: ${e.message}", e)
-                                    onImageCaptured(null)
-                                } finally {
-                                    photoFile.delete()
-                                }
-                            }
 
-                            override fun onError(exception: ImageCaptureException) {
-                                Log.e("CameraManager", "Image capture failed: ${exception.message}", exception)
-                                onImageCaptured(null)
-                                photoFile.delete()
-                            }
-                        }
-                    )
-                }, 800) // Wait 800ms after focus completes for stabilization
+                                    override fun onError(exception: ImageCaptureException) {
+                                        Log.e("CameraManager", "Image capture failed: ${exception.message}", exception)
+                                        onImageCaptured(null)
+                                        photoFile.delete()
+                                    }
+                                }
+                            )
+                        }, 600) // Wait 600ms after focus for stabilization (reduced to avoid motion)
             }
         } catch (e: Exception) {
             Log.e("CameraManager", "Error setting up image capture: ${e.message}", e)

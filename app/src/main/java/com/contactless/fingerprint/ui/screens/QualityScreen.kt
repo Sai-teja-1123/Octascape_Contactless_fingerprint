@@ -1,23 +1,42 @@
 package com.contactless.fingerprint.ui.screens
 
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.contactless.fingerprint.enhancement.ImageEnhancer
 import com.contactless.fingerprint.quality.QualityResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QualityScreen(
+    capturedBitmap: Bitmap?,
     qualityResult: QualityResult?,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val imageEnhancer = remember { ImageEnhancer() }
+    val scrollState = rememberScrollState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -34,9 +53,26 @@ fun QualityScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Show enhanced image preview if available
+            if (capturedBitmap != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                ) {
+                    Image(
+                        bitmap = capturedBitmap.asImageBitmap(),
+                        contentDescription = "Enhanced finger image",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
+
             if (qualityResult == null) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -72,6 +108,35 @@ fun QualityScreen(
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // ISO Export button (Track B optional feature)
+                if (capturedBitmap != null) {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch(Dispatchers.Default) {
+                                val exportPath = imageEnhancer.exportToIsoFormat(capturedBitmap, context)
+                                withContext(Dispatchers.Main) {
+                                    if (exportPath != null) {
+                                        Toast.makeText(
+                                            context,
+                                            "ISO format exported: ${exportPath.substringAfterLast("/")}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Export failed. Check logs for details.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Export to ISO Format (500 ppi)")
+                    }
+                }
 
                 // Auto-matching section
                 Card(modifier = Modifier.fillMaxWidth()) {

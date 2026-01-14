@@ -75,8 +75,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.3")
     implementation("androidx.camera:camera-view:1.3.3")
     
-    // OpenCV - Will be added later when implementing image processing
-    // For now, removed to test permissions without dependency issues
+    // OpenCV (image processing)
+    implementation("org.opencv:opencv:4.9.0")
     
     // Image Processing
     implementation("androidx.compose.ui:ui-tooling")

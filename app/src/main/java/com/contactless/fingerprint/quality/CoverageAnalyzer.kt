@@ -10,27 +10,69 @@ import com.contactless.fingerprint.camera.FingerDetector
  */
 object CoverageAnalyzer {
     fun analyzeCoverage(bitmap: Bitmap): Float {
-        // Use FingerDetector to get better finger detection
-        val fingerDetector = FingerDetector()
-        val detectionResult = fingerDetector.detectFinger(bitmap)
+        // If image is already cropped (smaller dimensions), analyze the entire image
+        // Otherwise, analyze center region (where finger box is)
         
-        // If finger is detected, use detection confidence as base score
-        if (detectionResult.isFingerDetected && detectionResult.confidence > 0.5f) {
-            val baseScore = detectionResult.confidence
-            
-            // Enhance with edge density analysis in detected region
-            val boundingBox = detectionResult.boundingBox
-            if (boundingBox != null) {
-                val edgeScore = analyzeEdgeDensityInRegion(bitmap, boundingBox)
-                // Combine detection confidence with edge density
-                return (baseScore * 0.7f + edgeScore * 0.3f).coerceIn(0f, 1f)
+        // Heuristic: if image is smaller than typical full capture, it's likely cropped
+        val isCropped = bitmap.width < 1000 || bitmap.height < 1000
+        
+        if (isCropped) {
+            // For cropped images, analyze the entire image (it's already the finger region)
+            return analyzeFullImage(bitmap)
+        } else {
+            // For full images, analyze center region (where finger box is)
+            return analyzeCenterRegion(bitmap)
+        }
+    }
+    
+    /**
+     * Analyzes the entire image for edge density (used for cropped images)
+     */
+    private fun analyzeFullImage(bitmap: Bitmap): Float {
+        var edgePixels = 0
+        var totalPixels = 0
+        val edgeThreshold = 0.08f // Lower threshold for enhanced images
+        
+        // Sample every 2nd pixel for performance
+        for (x in 0 until bitmap.width step 2) {
+            for (y in 0 until bitmap.height step 2) {
+                if (x > 0 && x < bitmap.width - 1 && y > 0 && y < bitmap.height - 1) {
+                    val center = bitmap.getPixel(x, y)
+                    val centerBrightness = getBrightness(center)
+                    
+                    // Check 8 neighbors for edge detection
+                    val neighbors = listOf(
+                        bitmap.getPixel(x - 1, y - 1),
+                        bitmap.getPixel(x, y - 1),
+                        bitmap.getPixel(x + 1, y - 1),
+                        bitmap.getPixel(x - 1, y),
+                        bitmap.getPixel(x + 1, y),
+                        bitmap.getPixel(x - 1, y + 1),
+                        bitmap.getPixel(x, y + 1),
+                        bitmap.getPixel(x + 1, y + 1)
+                    )
+                    
+                    var maxGradient = 0f
+                    for (neighbor in neighbors) {
+                        val neighborBrightness = getBrightness(neighbor)
+                        val gradient = kotlin.math.abs(centerBrightness - neighborBrightness)
+                        maxGradient = kotlin.math.max(maxGradient, gradient)
+                    }
+                    
+                    if (maxGradient > edgeThreshold) {
+                        edgePixels++
+                    }
+                    totalPixels++
+                }
             }
-            
-            return baseScore
         }
         
-        // Fallback: analyze center region (where finger box is)
-        return analyzeCenterRegion(bitmap)
+        if (totalPixels == 0) return 0f
+        
+        val edgeDensity = edgePixels.toFloat() / totalPixels
+        // For cropped images (already finger region), expect higher edge density
+        // Normalize: 15% edge density = 0.5 score, 30%+ = 1.0 score
+        return (edgeDensity / 0.3f).coerceIn(0f, 1f)
     }
     
     /**
@@ -82,36 +124,53 @@ object CoverageAnalyzer {
         if (totalPixels == 0) return 0f
         
         val edgeDensity = edgePixels.toFloat() / totalPixels
-        // Good fingerprint coverage has >30% edge density
-        return (edgeDensity / 0.5f).coerceIn(0f, 1f)
+        // Enhanced images have clearer ridges, but we need more lenient scoring
+        // Normalize: 10% edge density = 0.5 score, 20%+ = 1.0 score (more lenient)
+        // This accounts for the fact that even good fingerprints don't have edges everywhere
+        return (edgeDensity / 0.2f).coerceIn(0f, 1f)
     }
     
     /**
-     * Fallback: analyzes center region for finger presence
+     * Analyzes center region for finger presence using edge density
+     * Works well on enhanced grayscale images where ridges are clearly visible
      */
     private fun analyzeCenterRegion(bitmap: Bitmap): Float {
         val centerX = bitmap.width / 2
         val centerY = bitmap.height / 2
-        val regionSize = kotlin.math.min(bitmap.width, bitmap.height) / 3
+        // Use larger region (50% of image) to better capture finger coverage
+        val regionSize = kotlin.math.min(bitmap.width, bitmap.height) / 2
         
         var edgePixels = 0
         var totalPixels = 0
+        val edgeThreshold = 0.08f // Lower threshold for enhanced images (ridges are clearer)
         
         for (x in (centerX - regionSize / 2) until (centerX + regionSize / 2) step 2) {
             for (y in (centerY - regionSize / 2) until (centerY + regionSize / 2) step 2) {
-                if (x >= 0 && x < bitmap.width && y >= 0 && y < bitmap.height) {
-                    val pixel = bitmap.getPixel(x, y)
-                    val brightness = getBrightness(pixel)
+                if (x >= 0 && x < bitmap.width - 1 && y >= 0 && y < bitmap.height - 1) {
+                    val center = bitmap.getPixel(x, y)
+                    val centerBrightness = getBrightness(center)
                     
-                    // Check for edges
-                    if (x > 0 && y > 0) {
-                        val prevPixel = bitmap.getPixel(x - 1, y - 1)
-                        val prevBrightness = getBrightness(prevPixel)
-                        
-                        val edgeStrength = kotlin.math.abs(brightness - prevBrightness)
-                        if (edgeStrength > 0.1) {
-                            edgePixels++
-                        }
+                    // Check 8 neighbors for better edge detection (fingerprint ridges)
+                    val neighbors = listOf(
+                        if (x > 0 && y > 0) bitmap.getPixel(x - 1, y - 1) else center,
+                        if (y > 0) bitmap.getPixel(x, y - 1) else center,
+                        if (x < bitmap.width - 1 && y > 0) bitmap.getPixel(x + 1, y - 1) else center,
+                        if (x > 0) bitmap.getPixel(x - 1, y) else center,
+                        if (x < bitmap.width - 1) bitmap.getPixel(x + 1, y) else center,
+                        if (x > 0 && y < bitmap.height - 1) bitmap.getPixel(x - 1, y + 1) else center,
+                        if (y < bitmap.height - 1) bitmap.getPixel(x, y + 1) else center,
+                        if (x < bitmap.width - 1 && y < bitmap.height - 1) bitmap.getPixel(x + 1, y + 1) else center
+                    )
+                    
+                    var maxGradient = 0f
+                    for (neighbor in neighbors) {
+                        val neighborBrightness = getBrightness(neighbor)
+                        val gradient = kotlin.math.abs(centerBrightness - neighborBrightness)
+                        maxGradient = kotlin.math.max(maxGradient, gradient)
+                    }
+                    
+                    if (maxGradient > edgeThreshold) {
+                        edgePixels++
                     }
                     totalPixels++
                 }
@@ -121,7 +180,10 @@ object CoverageAnalyzer {
         if (totalPixels == 0) return 0f
         
         val edgeDensity = edgePixels.toFloat() / totalPixels
-        return (edgeDensity / 0.4f).coerceIn(0f, 1f)
+        // Enhanced images have clearer ridges, but we need more lenient scoring
+        // Normalize: 10% edge density = 0.5 score, 20%+ = 1.0 score (more lenient)
+        // This accounts for the fact that even good fingerprints don't have edges everywhere
+        return (edgeDensity / 0.2f).coerceIn(0f, 1f)
     }
     
     private fun getBrightness(pixel: Int): Float {
