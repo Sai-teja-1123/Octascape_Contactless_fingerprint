@@ -11,6 +11,7 @@ import com.contactless.fingerprint.utils.Constants
  * - Improved blur detection with calibrated thresholds
  * - Enhanced coverage analysis using finger detection
  * - Orientation analysis for proper finger positioning
+ * - Clear failure reasons instead of only PASS/FAIL
  */
 class QualityAssessor {
     fun assessQuality(bitmap: Bitmap): QualityResult {
@@ -37,13 +38,34 @@ class QualityAssessor {
                 coverageScore >= Constants.MIN_COVERAGE_SCORE &&
                 orientationScore >= Constants.MIN_ORIENTATION_SCORE
         
+        // Collect failure reasons for better user feedback
+        val failureReasons = mutableListOf<String>()
+        if (!isPass) {
+            if (blurScore < Constants.MIN_BLUR_SCORE) {
+                failureReasons.add("Image too blurry")
+            }
+            if (illuminationScore < Constants.MIN_ILLUMINATION_SCORE) {
+                failureReasons.add("Low light")
+            }
+            if (coverageScore < Constants.MIN_COVERAGE_SCORE) {
+                failureReasons.add("Partial finger detected")
+            }
+            if (orientationScore < Constants.MIN_ORIENTATION_SCORE) {
+                failureReasons.add("Finger misaligned")
+            }
+            if (overallScore < Constants.MIN_OVERALL_QUALITY) {
+                failureReasons.add("Overall quality too low")
+            }
+        }
+        
         return QualityResult(
             blurScore = blurScore,
             illuminationScore = illuminationScore,
             coverageScore = coverageScore,
             orientationScore = orientationScore,
             overallScore = overallScore,
-            isPass = isPass
+            isPass = isPass,
+            failureReasons = failureReasons
         )
     }
 }
@@ -54,5 +76,6 @@ data class QualityResult(
     val coverageScore: Float = 0f,
     val orientationScore: Float = 0f,
     val overallScore: Float = 0f,
-    val isPass: Boolean = false
+    val isPass: Boolean = false,
+    val failureReasons: List<String> = emptyList()
 )

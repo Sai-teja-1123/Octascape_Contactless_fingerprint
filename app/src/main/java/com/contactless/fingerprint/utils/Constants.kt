@@ -15,7 +15,7 @@ object Constants {
     const val ISO_RESOLUTION_HEIGHT = 500
     
     // Matching thresholds
-    const val MATCH_THRESHOLD = 0.7f
+    const val MATCH_THRESHOLD = 0.70f  // Minutiae-based matching: strict threshold to reduce false matches
     
     // Liveness thresholds
     const val MIN_LIVENESS_SCORE = 0.6f

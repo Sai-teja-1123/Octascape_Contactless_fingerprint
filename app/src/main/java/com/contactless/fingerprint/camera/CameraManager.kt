@@ -21,6 +21,15 @@ import java.nio.ByteBuffer
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CopyOnWriteArrayList
+
+/**
+ * Represents a frame with its timestamp for liveness detection.
+ */
+data class FrameWithTimestamp(
+    val bitmap: Bitmap,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 class CameraManager(private val context: Context) {
     private var cameraProvider: ProcessCameraProvider? = null
@@ -32,9 +41,50 @@ class CameraManager(private val context: Context) {
     private var lastDetectionTime = 0L
     private val detectionInterval = 500L // Analyze every 500ms to avoid performance issues
     private val analysisExecutor = Executors.newSingleThreadExecutor()
+    
+    // Step 1.1: Frame buffer for liveness detection (Track-D)
+    private val frameBuffer = CopyOnWriteArrayList<FrameWithTimestamp>()
+    private val maxFrameBufferSize = 10 // Store last 10 frames
+    private var isCollectingFrames = false // Start collecting when finger detected
 
     fun setFingerDetectionCallback(callback: (Boolean, Float) -> Unit) {
         fingerDetectionCallback = callback
+    }
+    
+    /**
+     * Step 1.1: Start collecting frames for liveness detection.
+     * Should be called when finger is detected.
+     */
+    fun startFrameCollection() {
+        isCollectingFrames = true
+        frameBuffer.clear() // Clear old frames
+        Log.d("CameraManager", "Started collecting frames for liveness detection")
+    }
+    
+    /**
+     * Step 1.1: Stop collecting frames.
+     */
+    fun stopFrameCollection() {
+        isCollectingFrames = false
+        Log.d("CameraManager", "Stopped collecting frames. Collected ${frameBuffer.size} frames")
+    }
+    
+    /**
+     * Step 1.1: Get collected frames for liveness detection.
+     * Returns a copy of the frame buffer.
+     */
+    fun getCollectedFrames(): List<Bitmap> {
+        return frameBuffer.map { it.bitmap }
+    }
+    
+    /**
+     * Step 1.1: Clear the frame buffer.
+     */
+    fun clearFrameBuffer() {
+        // Recycle bitmaps to free memory
+        frameBuffer.forEach { it.bitmap.recycle() }
+        frameBuffer.clear()
+        Log.d("CameraManager", "Frame buffer cleared")
     }
 
     fun initializeCamera(
@@ -112,6 +162,11 @@ class CameraManager(private val context: Context) {
                 val result = fingerDetector.detectFinger(bitmap)
                 
                 Log.d("CameraManager", "Finger detection: detected=${result.isFingerDetected}, confidence=${result.confidence}")
+                
+                // Step 1.1: Collect frame for liveness detection if collecting
+                if (isCollectingFrames) {
+                    addFrameToBuffer(bitmap)
+                }
                 
                 // Notify callback on main thread
                 fingerDetectionCallback?.let { callback ->
@@ -335,8 +390,35 @@ class CameraManager(private val context: Context) {
         }
     }
 
+    /**
+     * Step 1.1: Add frame to buffer for liveness detection.
+     * Maintains buffer size limit and recycles old frames.
+     */
+    private fun addFrameToBuffer(bitmap: Bitmap) {
+        try {
+            // Create a copy of the bitmap (original will be recycled)
+            val frameCopy = bitmap.copy(bitmap.config, false)
+            
+            // Add to buffer with timestamp
+            frameBuffer.add(FrameWithTimestamp(frameCopy))
+            
+            // Maintain buffer size limit (remove oldest frames)
+            while (frameBuffer.size > maxFrameBufferSize) {
+                val oldest = frameBuffer.removeAt(0)
+                oldest.bitmap.recycle() // Free memory
+            }
+            
+            Log.d("CameraManager", "Frame added to buffer. Buffer size: ${frameBuffer.size}")
+        } catch (e: Exception) {
+            Log.e("CameraManager", "Error adding frame to buffer: ${e.message}", e)
+        }
+    }
+    
     fun releaseCamera() {
         try {
+            // Clear frame buffer before releasing
+            clearFrameBuffer()
+            
             imageAnalysis?.clearAnalyzer()
             analysisExecutor.shutdown()
             cameraProvider?.unbindAll()
@@ -345,6 +427,7 @@ class CameraManager(private val context: Context) {
             imageAnalysis = null
             camera = null
             fingerDetectionCallback = null
+            isCollectingFrames = false
             Log.d("CameraManager", "Camera released")
         } catch (e: Exception) {
             Log.e("CameraManager", "Error releasing camera: ${e.message}", e)

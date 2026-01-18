@@ -9,21 +9,27 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.camera.view.PreviewView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.contactless.fingerprint.camera.CameraManager
 import com.contactless.fingerprint.quality.QualityAssessor
 import com.contactless.fingerprint.enhancement.ImageEnhancer
+import com.contactless.fingerprint.liveness.LivenessDetector
+import com.contactless.fingerprint.liveness.LivenessResult
 import com.contactless.fingerprint.ui.components.CameraPreview
 import com.contactless.fingerprint.utils.PermissionHandler
 import com.contactless.fingerprint.utils.rememberCameraPermissionLauncher
@@ -31,7 +37,7 @@ import com.contactless.fingerprint.utils.rememberCameraPermissionLauncher
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScreen(
-    onCaptureClick: (Bitmap?, com.contactless.fingerprint.quality.QualityResult?) -> Unit,
+    onCaptureClick: (Bitmap?, Bitmap?, com.contactless.fingerprint.quality.QualityResult?, LivenessResult?) -> Unit,
     onQualityCheckClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -39,6 +45,7 @@ fun CameraScreen(
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val qualityAssessor = remember { QualityAssessor() }
     val imageEnhancer = remember { ImageEnhancer() }
+    val livenessDetector = remember { LivenessDetector() }
     val coroutineScope = rememberCoroutineScope()
     
     var hasPermission by remember { mutableStateOf(PermissionHandler.hasCameraPermission(context)) }
@@ -49,7 +56,16 @@ fun CameraScreen(
     var cameraManager by remember { mutableStateOf<CameraManager?>(null) }
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
     var isCapturing by remember { mutableStateOf(false) }
-    var fingerDetectionConfidence by remember { mutableStateOf(0f) }
+    var fingerDetectionConfidence by remember { mutableFloatStateOf(0f) }
+    
+    // Step 1.2: Frame collection for liveness detection (Track-D)
+    var frameCollectionStartTime by remember { mutableStateOf<Long?>(null) }
+    var isFrameCollectionReady by remember { mutableStateOf(false) }
+    val frameCollectionDuration = 1500L // Collect frames for 1.5 seconds before allowing capture
+    
+    // Step 5.3: Liveness detection during frame collection
+    var preCaptureLivenessResult by remember { mutableStateOf<LivenessResult?>(null) }
+    var isCheckingLiveness by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberCameraPermissionLauncher(
         onPermissionGranted = {
@@ -69,6 +85,53 @@ fun CameraScreen(
         if (!hasPermission) {
             Log.d("CameraScreen", "Requesting camera permission")
             permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    
+    // Step 1.2 & 5.3: Monitor frame collection duration and run liveness detection
+    LaunchedEffect(frameCollectionStartTime) {
+        if (frameCollectionStartTime != null && isFingerDetected) {
+            delay(frameCollectionDuration)
+            if (frameCollectionStartTime != null && isFingerDetected && cameraManager != null) {
+                // Step 5.3: Run liveness detection on collected frames
+                isCheckingLiveness = true
+                preCaptureLivenessResult = null
+                
+                coroutineScope.launch(Dispatchers.Default) {
+                    try {
+                        val collectedFrames = cameraManager?.getCollectedFrames() ?: emptyList()
+                        if (collectedFrames.isNotEmpty()) {
+                            Log.d("CameraScreen", "Running pre-capture liveness detection on ${collectedFrames.size} frames...")
+                            val livenessResult = livenessDetector.detectLiveness(collectedFrames)
+                            
+                            withContext(Dispatchers.Main) {
+                                preCaptureLivenessResult = livenessResult
+                                isCheckingLiveness = false
+                                
+                                // Log results
+                                Log.d("CameraScreen", "Pre-capture liveness: isLive=${livenessResult.isLive}, confidence=${livenessResult.confidence}")
+                                
+                                // Show warning if spoof detected
+                                if (!livenessResult.isLive) {
+                                    Log.w("CameraScreen", "SPOOF DETECTED: confidence=${livenessResult.confidence}")
+                                }
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                isCheckingLiveness = false
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CameraScreen", "Error in pre-capture liveness detection: ${e.message}", e)
+                        withContext(Dispatchers.Main) {
+                            isCheckingLiveness = false
+                        }
+                    }
+                }
+                
+                isFrameCollectionReady = true
+                Log.d("CameraScreen", "Frame collection ready (${frameCollectionDuration}ms elapsed)")
+            }
         }
     }
 
@@ -171,6 +234,24 @@ fun CameraScreen(
                                     manager.setFingerDetectionCallback { detected, confidence ->
                                         isFingerDetected = detected
                                         fingerDetectionConfidence = confidence
+                                        
+                                        // Step 1.2: Start collecting frames when finger is first detected
+                                        if (detected && frameCollectionStartTime == null) {
+                                            frameCollectionStartTime = System.currentTimeMillis()
+                                            isFrameCollectionReady = false
+                                            manager.startFrameCollection()
+                                            Log.d("CameraScreen", "Started frame collection for liveness detection")
+                                        } else if (!detected) {
+                                            // Stop collection if finger is no longer detected
+                                            if (frameCollectionStartTime != null) {
+                                                manager.stopFrameCollection()
+                                                frameCollectionStartTime = null
+                                                isFrameCollectionReady = false
+                                                preCaptureLivenessResult = null // Clear liveness result
+                                                isCheckingLiveness = false
+                                                Log.d("CameraScreen", "Stopped frame collection (finger lost)")
+                                            }
+                                        }
                                     }
                                 } else if (!success) {
                                     cameraError = "Failed to initialize camera. Check Logcat for details."
@@ -326,29 +407,108 @@ fun CameraScreen(
                     text = when {
                         !hasPermission -> "Camera permission needed"
                         !cameraInitialized && cameraError == null -> "Initializing..."
-                        cameraError != null -> "Error: ${cameraError}"
+                        cameraError != null -> "Error: $cameraError"
                         isCapturing -> "Capturing image..."
-                        isFingerDetected -> "Finger detected (${(fingerDetectionConfidence * 100).toInt()}%)"
+                        isFingerDetected && !isFrameCollectionReady -> {
+                            val elapsed = frameCollectionStartTime?.let { System.currentTimeMillis() - it } ?: 0L
+                            val remaining = (frameCollectionDuration - elapsed).coerceAtLeast(0L)
+                            if (isCheckingLiveness) {
+                                "Checking liveness..."
+                            } else {
+                                "Collecting frames... (${(remaining / 1000f).coerceAtLeast(0f).toInt()}s)"
+                            }
+                        }
+                        isFingerDetected -> {
+                            when {
+                                preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive -> {
+                                    "⚠ SPOOF DETECTED - Capture not recommended"
+                                }
+                                preCaptureLivenessResult != null -> {
+                                    "Finger detected - Ready to capture (Live: ${(preCaptureLivenessResult!!.confidence * 100).toInt()}%)"
+                                }
+                                else -> {
+                                    "Finger detected (${(fingerDetectionConfidence * 100).toInt()}%) - Ready to capture"
+                                }
+                            }
+                        }
                         else -> "Position finger in the box"
                     },
                     textAlign = TextAlign.Center,
                     color = when {
                         !hasPermission -> MaterialTheme.colorScheme.error
                         cameraError != null -> MaterialTheme.colorScheme.error
+                        preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive -> {
+                            MaterialTheme.colorScheme.error // Red for spoof
+                        }
                         cameraInitialized -> MaterialTheme.colorScheme.onSurface
                         else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     }
                 )
+                
+                // Step 5.3: Show spoof warning if detected
+                if (preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "⚠",
+                                    fontSize = 24.sp,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = "Spoof Detected",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            Text(
+                                text = "Liveness check indicates this may be a photo or print.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "Confidence: ${(preCaptureLivenessResult!!.confidence * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "You can still capture, but results may be unreliable.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
 
                 Button(
                     onClick = {
                         if (cameraManager != null && previewView != null && !isCapturing) {
+                            // Step 5.1: Get collected frames for liveness detection
+                            val collectedFrames = cameraManager?.getCollectedFrames() ?: emptyList()
+                            
+                            // Step 1.2: Stop frame collection before capture
+                            cameraManager?.stopFrameCollection()
+                            
                             isCapturing = true
                             cameraManager?.captureImage(previewView!!, mainExecutor) { bitmap ->
                                 if (bitmap != null) {
-                                    Log.d("CameraScreen", "Image captured, running enhancement + quality assessment...")
-                                    // Run enhancement + quality assessment on background thread to avoid blocking UI
+                                    Log.d("CameraScreen", "Image captured, running enhancement + quality assessment + liveness detection...")
+                                    // Run enhancement + quality assessment + liveness detection on background thread
                                     coroutineScope.launch(Dispatchers.Default) {
+                                        // Enhancement #3: Store raw bitmap before enhancement
+                                        val rawBitmap = bitmap.copy(bitmap.config, false)
+                                        
                                         // Track B: enhance captured image using OpenCV
                                         // Pass preview dimensions for accurate box matching
                                         val previewWidth = previewView?.width
@@ -357,11 +517,34 @@ fun CameraScreen(
 
                                         val qualityResult = qualityAssessor.assessQuality(enhancedBitmap)
                                         Log.d("CameraScreen", "Quality assessed: ${qualityResult.overallScore}")
+                                        
+                                        // Step 5.1: Run liveness detection on collected frames
+                                        val livenessResult = if (collectedFrames.isNotEmpty()) {
+                                            Log.d("CameraScreen", "Running liveness detection on ${collectedFrames.size} frames...")
+                                            livenessDetector.detectLiveness(collectedFrames)
+                                        } else {
+                                            Log.w("CameraScreen", "No frames collected for liveness detection")
+                                            LivenessResult(
+                                                isLive = false,
+                                                confidence = 0f,
+                                                motionScore = 0f,
+                                                textureScore = 0f,
+                                                consistencyScore = 0f
+                                            )
+                                        }
+                                        
                                         // Switch back to main thread to update UI
                                         withContext(Dispatchers.Main) {
                                             isCapturing = false
+                                            // Step 1.2: Reset frame collection state after capture
+                                            frameCollectionStartTime = null
+                                            isFrameCollectionReady = false
+                                            preCaptureLivenessResult = null // Clear pre-capture result
+                                            // Clear frame buffer after use
+                                            cameraManager?.clearFrameBuffer()
+                                            // Enhancement #3: Pass both raw and enhanced bitmaps
                                             // Downstream flows (quality screen, later matching) use enhanced image
-                                            onCaptureClick(enhancedBitmap, qualityResult)
+                                            onCaptureClick(rawBitmap, enhancedBitmap, qualityResult, livenessResult)
                                         }
                                     }
                                 } else {
@@ -371,10 +554,16 @@ fun CameraScreen(
                             }
                         }
                     },
-                    enabled = hasPermission && cameraInitialized && !isCapturing && previewView != null && isFingerDetected,
+                    enabled = hasPermission && cameraInitialized && !isCapturing && previewView != null && isFingerDetected && isFrameCollectionReady && !isCheckingLiveness,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (isFingerDetected) "Capture" else "Place finger in box")
+                    Text(
+                        when {
+                            !isFingerDetected -> "Place finger in box"
+                            !isFrameCollectionReady -> "Collecting frames..."
+                            else -> "Capture"
+                        }
+                    )
                 }
 
                 OutlinedButton(

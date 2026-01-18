@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun HomeScreen(
     onCaptureClick: () -> Unit,
+    onMatchingClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -46,6 +47,13 @@ fun HomeScreen(
                 title = "Start Capture",
                 description = "Capture → Auto-enhance → Quality check → Auto-match",
                 onClick = onCaptureClick,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            FeatureCard(
+                title = "Fingerprint Matching",
+                description = "Enroll contact-based prints and match with contactless captures",
+                onClick = onMatchingClick,
                 modifier = Modifier.fillMaxWidth()
             )
         }
