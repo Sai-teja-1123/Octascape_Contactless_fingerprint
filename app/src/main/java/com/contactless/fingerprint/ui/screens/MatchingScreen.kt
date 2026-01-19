@@ -27,6 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import com.contactless.fingerprint.ui.theme.*
 import com.contactless.fingerprint.matching.EnrollmentRepository
 import com.contactless.fingerprint.matching.FingerprintEnrollment
 import com.contactless.fingerprint.matching.FeatureExtractor
@@ -69,6 +72,10 @@ fun MatchingScreen(
     
     // Track enrollment count to trigger recomposition when enrollments change
     var enrollmentCount by remember { mutableStateOf(EnrollmentRepository.getCount()) }
+    
+    // Delete confirmation dialog state
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var enrollmentToDelete by remember { mutableStateOf<FingerprintEnrollment?>(null) }
 
     // Step 5.1: Matching state
     var isMatching by remember { mutableStateOf(false) }
@@ -101,12 +108,20 @@ fun MatchingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Fingerprint Matching") },
+                title = { 
+                    Text(
+                        "Fingerprint Matching",
+                        style = MaterialTheme.typography.displayMedium
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Text("←")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { paddingValues ->
@@ -114,25 +129,26 @@ fun MatchingScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp)
+                .padding(Spacing.ScreenPadding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.LargeGap)
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(Spacing.ElementMargin))
 
             Text(
                 text = "Fingerprint Matching",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.displayLarge,
+                color = PrimaryText
             )
 
             Text(
                 text = "Track C: Contactless-to-Contact Matching",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyLarge,
+                color = SecondaryText
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.LargeGap))
 
             // Step 2.1: Gallery picker button
             Button(
@@ -144,38 +160,58 @@ fun MatchingScreen(
                         )
                     )
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = BorderRadius.Medium,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryBlue,
+                    contentColor = BackgroundWhite
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = Elevation.ButtonPrimary
+                )
             ) {
-                Text("Select Contact-based Fingerprints from Gallery")
+                Text(
+                    "Select Contact-based Fingerprints from Gallery",
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
 
             // Simple status card showing how many images are selected
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = BorderRadius.Large,
+                colors = CardDefaults.cardColors(
+                    containerColor = BackgroundWhite
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = Elevation.Card
+                )
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(Spacing.CardPadding),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                 ) {
                     Text(
                         text = "Enrollment Images",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.displaySmall,
+                        color = PrimaryText
                     )
                     if (selectedImages.isEmpty()) {
                         Text(
                             text = "No contact-based fingerprint images selected yet.\n" +
                                     "Use the button above to pick images from the gallery.",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SecondaryText
                         )
                     } else {
                         Text(
                             text = "Selected ${selectedImages.size} image(s).\n" +
                                     "Next step: link them to an ID (enrollment).",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SecondaryText
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(Spacing.SmallGap))
 
                         // Step 2.2: Enrollment button
                         Button(
@@ -184,9 +220,20 @@ fun MatchingScreen(
                                 enrollmentName = ""
                                 showEnrollDialog = true
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = BorderRadius.Medium,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PrimaryBlue,
+                                contentColor = BackgroundWhite
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = Elevation.ButtonPrimary
+                            )
                         ) {
-                            Text("Enroll Selected Images with ID")
+                            Text(
+                                "Enroll Selected Images with ID",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
                         }
                     }
                 }
@@ -196,36 +243,55 @@ fun MatchingScreen(
             if (showEnrollDialog) {
                 AlertDialog(
                     onDismissRequest = { showEnrollDialog = false },
+                    shape = BorderRadius.ExtraLarge4,
                     title = {
-                        Text(text = "Enroll Fingerprints")
+                        Text(
+                            text = "Enroll Fingerprints",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = PrimaryText
+                        )
                     },
                     text = {
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                         ) {
                             Text(
                                 text = "Assign an ID to these contact-based fingerprint images.\n" +
                                         "You will later match contactless captures against this ID.",
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SecondaryText
                             )
 
                             OutlinedTextField(
                                 value = enrollmentId,
                                 onValueChange = { enrollmentId = it },
-                                label = { Text("Enrollment ID (e.g., P001)") },
-                                singleLine = true
+                                label = { 
+                                    Text(
+                                        "Enrollment ID (e.g., P001)",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    ) 
+                                },
+                                singleLine = true,
+                                shape = BorderRadius.Medium
                             )
 
                             OutlinedTextField(
                                 value = enrollmentName,
                                 onValueChange = { enrollmentName = it },
-                                label = { Text("Name / Description (optional)") },
-                                singleLine = true
+                                label = { 
+                                    Text(
+                                        "Name / Description (optional)",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    ) 
+                                },
+                                singleLine = true,
+                                shape = BorderRadius.Medium
                             )
 
                             Text(
                                 text = "Images selected: ${selectedImages.size}",
-                                style = MaterialTheme.typography.bodySmall
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TertiaryText
                             )
                         }
                     },
@@ -257,70 +323,94 @@ fun MatchingScreen(
                                     imageUris = selectedImages
                                 )
 
-                                val added = EnrollmentRepository.addEnrollment(enrollment)
-                                if (added) {
-                                    Toast.makeText(
-                                        context,
-                                        "Enrolled ID $trimmedId with ${selectedImages.size} image(s)",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    // Clear selected images and refresh enrollment list
-                                    selectedImages = emptyList()
-                                    enrollmentCount = EnrollmentRepository.getCount()
-                                    showEnrollDialog = false
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "ID $trimmedId already exists or enrollment invalid",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                // Use coroutine for async enrollment (copies images to storage)
+                                coroutineScope.launch(Dispatchers.Main) {
+                                    val added = EnrollmentRepository.addEnrollment(enrollment)
+                                    if (added) {
+                                        Toast.makeText(
+                                            context,
+                                            "Enrolled ID $trimmedId with ${selectedImages.size} image(s)",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        // Clear selected images and refresh enrollment list
+                                        selectedImages = emptyList()
+                                        enrollmentCount = EnrollmentRepository.getCount()
+                                        showEnrollDialog = false
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "ID '$trimmedId' already exists. Each ID must be unique.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
-                            }
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = PrimaryBlue
+                            )
                         ) {
-                            Text("Enroll")
+                            Text(
+                                "Enroll",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
                         }
                     },
                     dismissButton = {
                         TextButton(
-                            onClick = { showEnrollDialog = false }
+                            onClick = { showEnrollDialog = false },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = SecondaryText
+                            )
                         ) {
-                            Text("Cancel")
+                            Text(
+                                "Cancel",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
                         }
                     }
                 )
             }
 
             // Step 2.3: Display Enrolled IDs section
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.SmallGap))
 
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = BorderRadius.Large,
+                colors = CardDefaults.cardColors(
+                    containerColor = BackgroundWhite
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = Elevation.Card
+                )
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(Spacing.CardPadding),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.MediumGap)
                 ) {
                     Text(
                         text = "Enrolled Fingerprints",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.displaySmall,
+                        color = PrimaryText
                     )
 
                     if (allEnrollments.isEmpty()) {
                         Text(
                             text = "No enrollments yet.\n" +
                                     "Select images above and enroll them with an ID.",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SecondaryText
                         )
                     } else {
                         Text(
                             text = "Select an enrolled ID to match against:",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SecondaryText
                         )
 
                         // List of enrolled IDs (selectable)
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                         ) {
                             allEnrollments.forEach { enrollment ->
                                 val isSelected = selectedEnrollmentId == enrollment.id
@@ -329,44 +419,75 @@ fun MatchingScreen(
                                         selectedEnrollmentId = if (isSelected) null else enrollment.id
                                     },
                                     modifier = Modifier.fillMaxWidth(),
+                                    shape = BorderRadius.Large,
                                     colors = CardDefaults.cardColors(
                                         containerColor = if (isSelected) {
-                                            MaterialTheme.colorScheme.primaryContainer
+                                            PrimaryBlueLight
                                         } else {
-                                            MaterialTheme.colorScheme.surface
+                                            LightGray
                                         }
+                                    ),
+                                    border = if (isSelected) {
+                                        androidx.compose.foundation.BorderStroke(2.dp, PrimaryBlue)
+                                    } else {
+                                        androidx.compose.foundation.BorderStroke(1.dp, BorderGray)
+                                    },
+                                    elevation = CardDefaults.cardElevation(
+                                        defaultElevation = if (isSelected) Elevation.Card else 0.dp
                                     )
                                 ) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(16.dp),
+                                            .padding(Spacing.CardPadding),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(
-                                            modifier = Modifier.weight(1f)
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(Spacing.TightGap)
                                         ) {
                                             Text(
                                                 text = enrollment.id,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
+                                                style = MaterialTheme.typography.displaySmall,
+                                                color = PrimaryText
                                             )
                                             Text(
                                                 text = enrollment.name,
-                                                style = MaterialTheme.typography.bodySmall
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = SecondaryText
                                             )
                                             Text(
                                                 text = "${enrollment.imageUris.size} image(s)",
-                                                style = MaterialTheme.typography.bodySmall
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = TertiaryText
                                             )
                                         }
-                                        if (isSelected) {
-                                            Text(
-                                                text = "✓",
-                                                style = MaterialTheme.typography.titleLarge,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(Spacing.SmallGap),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Delete button
+                                            IconButton(
+                                                onClick = {
+                                                    enrollmentToDelete = enrollment
+                                                    showDeleteDialog = true
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete enrollment",
+                                                    tint = DangerRed
+                                                )
+                                            }
+                                            // Selection indicator
+                                            if (isSelected) {
+                                                Text(
+                                                    text = "✓",
+                                                    style = MaterialTheme.typography.displaySmall,
+                                                    color = PrimaryBlue
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -375,67 +496,90 @@ fun MatchingScreen(
 
                         // Show selected enrollment details
                         if (selectedEnrollment != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Divider()
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(Spacing.SmallGap))
+                            Divider(color = BorderGray)
+                            Spacer(modifier = Modifier.height(Spacing.SmallGap))
                             Text(
                                 text = "Selected: ${selectedEnrollment.id}",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = PrimaryText
                             )
                             Text(
                                 text = "Name: ${selectedEnrollment.name}",
-                                style = MaterialTheme.typography.bodySmall
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SecondaryText
                             )
                             Text(
                                 text = "Images: ${selectedEnrollment.imageUris.size}",
-                                style = MaterialTheme.typography.bodySmall
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SecondaryText
                             )
                             Text(
                                 text = "Ready for matching with contactless capture.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = PrimaryBlue
                             )
 
                             // Step 5.1: Match button and contactless image section
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Divider()
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(Spacing.MediumGap))
+                            Divider(color = BorderGray)
+                            Spacer(modifier = Modifier.height(Spacing.MediumGap))
 
                             // Contactless image section
                             Text(
                                 text = "Contactless Fingerprint",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.displaySmall,
+                                color = PrimaryText
                             )
 
                             if (contactlessBitmap == null) {
                                 Text(
                                     text = "No contactless image captured yet.",
-                                    style = MaterialTheme.typography.bodySmall
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = SecondaryText
                                 )
                                 Button(
                                     onClick = onCaptureClick,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = BorderRadius.Medium,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = PrimaryBlue,
+                                        contentColor = BackgroundWhite
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = Elevation.ButtonPrimary
+                                    )
                                 ) {
-                                    Text("Capture Contactless Finger")
+                                    Text(
+                                        "Capture Contactless Finger",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
                                 }
                             } else {
                                 Text(
                                     text = "Contactless image ready for matching.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = PrimaryBlue
                                 )
                                 Button(
                                     onClick = onCaptureClick,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = BorderRadius.Medium,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = LightGray,
+                                        contentColor = PrimaryText
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderGray)
                                 ) {
-                                    Text("Capture New Contactless Finger")
+                                    Text(
+                                        "Capture New Contactless Finger",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
                                 }
                             }
 
                             // Match button
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(Spacing.SmallGap))
                             Button(
                                 onClick = {
                                     if (contactlessBitmap == null) {
@@ -601,107 +745,124 @@ fun MatchingScreen(
                                     }
                                 },
                                 enabled = !isMatching && contactlessBitmap != null && selectedEnrollment != null,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = BorderRadius.Medium,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PrimaryBlue,
+                                    contentColor = BackgroundWhite,
+                                    disabledContainerColor = TertiaryText,
+                                    disabledContentColor = BackgroundWhite.copy(alpha = 0.3f)
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(
+                                    defaultElevation = Elevation.ButtonPrimary
+                                )
                             ) {
                                 if (isMatching) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(16.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary
+                                        color = BackgroundWhite
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Matching...")
+                                    Spacer(modifier = Modifier.width(Spacing.SmallGap))
+                                    Text(
+                                        "Matching...",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
                                 } else {
-                                    Text("Match Contactless to Selected ID")
+                                    Text(
+                                        "Match Contactless to Selected ID",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
                                 }
                             }
 
                             // Step 5.2: Display Results
                             if (matchResult != null) {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Divider()
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(Spacing.LargeGap))
+                                Divider(color = BorderGray)
+                                Spacer(modifier = Modifier.height(Spacing.LargeGap))
 
+                                val resultColor = if (matchResult!!.isMatch) SuccessGreen else DangerRed
+                                
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
+                                    shape = BorderRadius.Large,
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (matchResult!!.isMatch) {
-                                            Color(0xFF4CAF50).copy(alpha = 0.1f)
-                                        } else {
-                                            Color(0xFFF44336).copy(alpha = 0.1f)
-                                        }
+                                        containerColor = resultColor.copy(alpha = 0.1f)
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, resultColor.copy(alpha = 0.3f)),
+                                    elevation = CardDefaults.cardElevation(
+                                        defaultElevation = Elevation.Card
                                     )
                                 ) {
                                     Column(
-                                        modifier = Modifier.padding(20.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        modifier = Modifier.padding(Spacing.CardPadding),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(Spacing.MediumGap)
                                     ) {
                                         // Match/No Match status
                                         Text(
                                             text = if (matchResult!!.isMatch) "✓ MATCH" else "✗ NO MATCH",
-                                            style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (matchResult!!.isMatch) {
-                                                Color(0xFF4CAF50)
-                                            } else {
-                                                Color(0xFFF44336)
-                                            }
+                                            style = MaterialTheme.typography.displaySmall,
+                                            color = resultColor
                                         )
 
                                         // Similarity score
                                         Text(
                                             text = "Similarity: ${String.format("%.1f%%", matchResult!!.similarityScore * 100)}",
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold
+                                            style = MaterialTheme.typography.displaySmall,
+                                            color = PrimaryText
                                         )
 
                                         // Progress bar
                                         LinearProgressIndicator(
                                             progress = { matchResult!!.similarityScore },
                                             modifier = Modifier.fillMaxWidth(),
-                                            color = if (matchResult!!.isMatch) {
-                                                Color(0xFF4CAF50)
-                                            } else {
-                                                Color(0xFFF44336)
-                                            }
+                                            color = resultColor,
+                                            trackColor = resultColor.copy(alpha = 0.2f)
                                         )
 
                                         // Confidence
                                         Text(
                                             text = "Confidence: ${String.format("%.1f%%", matchResult!!.confidence * 100)}",
-                                            style = MaterialTheme.typography.bodyMedium
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = SecondaryText
                                         )
 
                                         // Image thumbnails
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Divider()
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Spacer(modifier = Modifier.height(Spacing.SmallGap))
+                                        Divider(color = BorderGray)
+                                        Spacer(modifier = Modifier.height(Spacing.SmallGap))
 
                                         Text(
                                             text = "Comparison Images",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold
+                                            style = MaterialTheme.typography.displaySmall,
+                                            color = PrimaryText
                                         )
 
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(Spacing.MediumGap)
                                         ) {
                                             // Contactless image thumbnail
                                             Column(
                                                 modifier = Modifier.weight(1f),
-                                                horizontalAlignment = Alignment.CenterHorizontally
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(Spacing.TightGap)
                                             ) {
                                                 Text(
                                                     text = "Contactless",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.Bold
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = PrimaryText
                                                 )
-                                                Spacer(modifier = Modifier.height(4.dp))
                                                 if (contactlessBitmap != null) {
                                                     Card(
                                                         modifier = Modifier
                                                             .height(120.dp)
-                                                            .fillMaxWidth()
+                                                            .fillMaxWidth(),
+                                                        shape = BorderRadius.Medium,
+                                                        elevation = CardDefaults.cardElevation(
+                                                            defaultElevation = Elevation.Card
+                                                        )
                                                     ) {
                                                         Image(
                                                             bitmap = contactlessBitmap.asImageBitmap(),
@@ -716,19 +877,23 @@ fun MatchingScreen(
                                             // Best match contact-based image thumbnail
                                             Column(
                                                 modifier = Modifier.weight(1f),
-                                                horizontalAlignment = Alignment.CenterHorizontally
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(Spacing.TightGap)
                                             ) {
                                                 Text(
                                                     text = "Best Match (Contact-based)",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.Bold
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = PrimaryText
                                                 )
-                                                Spacer(modifier = Modifier.height(4.dp))
                                                 if (bestMatchBitmap != null) {
                                                     Card(
                                                         modifier = Modifier
                                                             .height(120.dp)
-                                                            .fillMaxWidth()
+                                                            .fillMaxWidth(),
+                                                        shape = BorderRadius.Medium,
+                                                        elevation = CardDefaults.cardElevation(
+                                                            defaultElevation = Elevation.Card
+                                                        )
                                                     ) {
                                                         Image(
                                                             bitmap = bestMatchBitmap!!.asImageBitmap(),
@@ -741,7 +906,11 @@ fun MatchingScreen(
                                                     Card(
                                                         modifier = Modifier
                                                             .height(120.dp)
-                                                            .fillMaxWidth()
+                                                            .fillMaxWidth(),
+                                                        shape = BorderRadius.Medium,
+                                                        colors = CardDefaults.cardColors(
+                                                            containerColor = LightGray
+                                                        )
                                                     ) {
                                                         Box(
                                                             modifier = Modifier.fillMaxSize(),
@@ -749,7 +918,8 @@ fun MatchingScreen(
                                                         ) {
                                                             Text(
                                                                 text = "No image",
-                                                                style = MaterialTheme.typography.bodySmall
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = TertiaryText
                                                             )
                                                         }
                                                     }
@@ -759,16 +929,18 @@ fun MatchingScreen(
 
                                         // Selected enrollment info
                                         if (selectedEnrollment != null) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Divider()
-                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Spacer(modifier = Modifier.height(Spacing.SmallGap))
+                                            Divider(color = BorderGray)
+                                            Spacer(modifier = Modifier.height(Spacing.SmallGap))
                                             Text(
                                                 text = "Matched against: ${selectedEnrollment.id}",
-                                                style = MaterialTheme.typography.bodySmall
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = SecondaryText
                                             )
                                             Text(
                                                 text = "Name: ${selectedEnrollment.name}",
-                                                style = MaterialTheme.typography.bodySmall
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = SecondaryText
                                             )
                                         }
                                     }
@@ -777,6 +949,114 @@ fun MatchingScreen(
                         }
                     }
                 }
+            }
+            
+            // Delete confirmation dialog
+            if (showDeleteDialog && enrollmentToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { 
+                        showDeleteDialog = false
+                        enrollmentToDelete = null
+                    },
+                    shape = BorderRadius.ExtraLarge4,
+                    title = {
+                        Text(
+                            text = "Delete Enrollment",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = PrimaryText
+                        )
+                    },
+                    text = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
+                        ) {
+                            Text(
+                                text = "Are you sure you want to delete enrollment:",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SecondaryText
+                            )
+                            Text(
+                                text = "ID: ${enrollmentToDelete!!.id}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = PrimaryText,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Name: ${enrollmentToDelete!!.name}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SecondaryText
+                            )
+                            Text(
+                                text = "Images: ${enrollmentToDelete!!.imageUris.size}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SecondaryText
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.SmallGap))
+                            Text(
+                                text = "This will permanently delete the enrollment and all associated images from storage.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = DangerRed
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val idToDelete = enrollmentToDelete!!.id
+                                val deleted = EnrollmentRepository.removeEnrollment(idToDelete)
+                                
+                                if (deleted) {
+                                    Toast.makeText(
+                                        context,
+                                        "Deleted enrollment: $idToDelete",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    
+                                    // Clear selection if deleted enrollment was selected
+                                    if (selectedEnrollmentId == idToDelete) {
+                                        selectedEnrollmentId = null
+                                    }
+                                    
+                                    // Refresh enrollment list
+                                    enrollmentCount = EnrollmentRepository.getCount()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Failed to delete enrollment: $idToDelete",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                
+                                showDeleteDialog = false
+                                enrollmentToDelete = null
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = DangerRed
+                            )
+                        ) {
+                            Text(
+                                "Delete",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { 
+                                showDeleteDialog = false
+                                enrollmentToDelete = null
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = SecondaryText
+                            )
+                        ) {
+                            Text(
+                                "Cancel",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                )
             }
         }
     }

@@ -19,6 +19,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.contactless.fingerprint.ui.components.PrimaryButton
+import com.contactless.fingerprint.ui.components.SecondaryButton
+import com.contactless.fingerprint.ui.theme.*
 import androidx.core.content.ContextCompat
 import androidx.camera.view.PreviewView
 import kotlinx.coroutines.Dispatchers
@@ -276,8 +279,8 @@ fun CameraScreen(
                                         .size(300.dp, 220.dp)
                                         .border(
                                             width = 3.dp,
-                                            color = Color.White.copy(alpha = 0.9f),
-                                            shape = RoundedCornerShape(12.dp)
+                                            color = BackgroundWhite.copy(alpha = 0.9f),
+                                            shape = BorderRadius.Medium
                                         )
                                 )
                                 
@@ -291,28 +294,28 @@ fun CameraScreen(
                                         modifier = Modifier
                                             .align(Alignment.TopStart)
                                             .size(20.dp)
-                                            .border(3.dp, Color.White, RoundedCornerShape(4.dp))
+                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
                                     )
                                     // Top-right corner
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
                                             .size(20.dp)
-                                            .border(3.dp, Color.White, RoundedCornerShape(4.dp))
+                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
                                     )
                                     // Bottom-left corner
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomStart)
                                             .size(20.dp)
-                                            .border(3.dp, Color.White, RoundedCornerShape(4.dp))
+                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
                                     )
                                     // Bottom-right corner
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomEnd)
                                             .size(20.dp)
-                                            .border(3.dp, Color.White, RoundedCornerShape(4.dp))
+                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
                                     )
                                 }
                             }
@@ -320,7 +323,8 @@ fun CameraScreen(
                             // Hint text below box
                             Text(
                                 text = "Place your finger inside the box",
-                                color = Color.White.copy(alpha = 0.9f),
+                                color = BackgroundWhite.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 240.dp)
@@ -385,7 +389,7 @@ fun CameraScreen(
                             ) {
                                 Text(
                                     text = "✓",
-                                    color = Color.Green,
+                                    color = SuccessGreen,
                                     style = MaterialTheme.typography.displayLarge
                                 )
                             }
@@ -449,49 +453,51 @@ fun CameraScreen(
                 if (preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        shape = BorderRadius.Large,
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
+                            containerColor = DangerRed.copy(alpha = 0.1f)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DangerRed.copy(alpha = 0.3f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(Spacing.CardPadding),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                             ) {
                                 Text(
                                     text = "⚠",
-                                    fontSize = 24.sp,
-                                    color = MaterialTheme.colorScheme.error
+                                    style = MaterialTheme.typography.displaySmall,
+                                    color = DangerRed
                                 )
                                 Text(
                                     text = "Spoof Detected",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.error
+                                    style = MaterialTheme.typography.displaySmall,
+                                    color = DangerRed
                                 )
                             }
                             Text(
                                 text = "Liveness check indicates this may be a photo or print.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color = PrimaryText
                             )
                             Text(
                                 text = "Confidence: ${(preCaptureLivenessResult!!.confidence * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color = SecondaryText
                             )
                             Text(
                                 text = "You can still capture, but results may be unreliable.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                color = TertiaryText
                             )
                         }
                     }
                 }
 
-                Button(
+                PrimaryButton(
                     onClick = {
                         if (cameraManager != null && previewView != null && !isCapturing) {
                             // Step 5.1: Get collected frames for liveness detection
@@ -562,16 +568,20 @@ fun CameraScreen(
                             !isFingerDetected -> "Place finger in box"
                             !isFrameCollectionReady -> "Collecting frames..."
                             else -> "Capture"
-                        }
+                        },
+                        style = MaterialTheme.typography.bodyLarge
                     )
                 }
 
-                OutlinedButton(
+                SecondaryButton(
                     onClick = onQualityCheckClick,
                     enabled = hasPermission && cameraInitialized && !isCapturing,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Check Quality")
+                    Text(
+                        "Check Quality",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 }
             }
         }

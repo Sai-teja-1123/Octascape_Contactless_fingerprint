@@ -19,6 +19,11 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        
+        // Include all native library architectures for universal APK
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
@@ -48,6 +53,17 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        // Ensure all native library architectures are included (universal APK)
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+    
+    // Ensure all ABIs are included in the APK (universal APK)
+    defaultConfig {
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
     }
 }
@@ -80,6 +96,9 @@ dependencies {
     
     // Image Processing
     implementation("androidx.compose.ui:ui-tooling")
+    
+    // JSON serialization for persistence
+    implementation("com.google.code.gson:gson:2.10.1")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

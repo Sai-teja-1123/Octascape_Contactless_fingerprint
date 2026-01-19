@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.contactless.fingerprint.ui.theme.*
 import com.contactless.fingerprint.enhancement.ImageEnhancer
 import com.contactless.fingerprint.liveness.LivenessResult
 import com.contactless.fingerprint.quality.QualityResult
@@ -50,12 +51,20 @@ fun QualityScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Quality Assessment") },
+                title = { 
+                    Text(
+                        "Quality Assessment",
+                        style = MaterialTheme.typography.displayMedium
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Text("←")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { paddingValues ->
@@ -63,9 +72,9 @@ fun QualityScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(Spacing.ScreenPadding)
                 .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.LargeGap)
         ) {
             // Enhancement #3: Show raw or enhanced image preview with toggle
             if (capturedBitmap != null) {
@@ -76,18 +85,31 @@ fun QualityScreen(
                     if (rawBitmap != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             FilterChip(
                                 selected = !showRawImage,
                                 onClick = { showRawImage = false },
-                                label = { Text("Enhanced") }
+                                label = { 
+                                    Text(
+                                        "Enhanced",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    ) 
+                                },
+                                shape = BorderRadius.Small
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(Spacing.SmallGap))
                             FilterChip(
                                 selected = showRawImage,
                                 onClick = { showRawImage = true },
-                                label = { Text("Raw") }
+                                label = { 
+                                    Text(
+                                        "Raw",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    ) 
+                                },
+                                shape = BorderRadius.Small
                             )
                         }
                     }
@@ -95,7 +117,14 @@ fun QualityScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
+                            .height(200.dp),
+                        shape = BorderRadius.Large,
+                        colors = CardDefaults.cardColors(
+                            containerColor = BackgroundWhite
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = Elevation.Card
+                        )
                     ) {
                         Image(
                             bitmap = if (showRawImage && rawBitmap != null) {
@@ -113,7 +142,7 @@ fun QualityScreen(
                     Text(
                         text = if (showRawImage) "Raw Image" else "Enhanced Image",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        color = TertiaryText,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -121,14 +150,31 @@ fun QualityScreen(
             }
 
             if (qualityResult == null) {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = BorderRadius.Large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = LightGray
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = Elevation.Card
+                    )
+                ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier.padding(Spacing.CardPadding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                     ) {
-                        Text("No quality data available")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Capture a finger image first")
+                        Text(
+                            "No quality data available",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = PrimaryText
+                        )
+                        Text(
+                            "Capture a finger image first",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SecondaryText
+                        )
                     }
                 }
             } else {
@@ -185,43 +231,73 @@ fun QualityScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = BorderRadius.Medium,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryBlue,
+                            contentColor = BackgroundWhite
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = Elevation.ButtonPrimary
+                        )
                     ) {
-                        Text("Export to ISO Format (500 ppi)")
+                        Text(
+                            "Export to ISO Format (500 ppi)",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
 
                     // Step 5.1: Navigate to Matching button
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.SmallGap))
                     Button(
                         onClick = onMatchingClick,
                         modifier = Modifier.fillMaxWidth(),
+                        shape = BorderRadius.Medium,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
+                            containerColor = PrimaryBlue,
+                            contentColor = BackgroundWhite
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = Elevation.ButtonPrimary
                         )
                     ) {
-                        Text("Go to Matching (Track C)")
+                        Text(
+                            "Go to Matching (Track C)",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
                 }
 
                 // Auto-matching section
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = BorderRadius.Large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = LightGray
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = Elevation.Card
+                    )
+                ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(Spacing.CardPadding),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
                     ) {
                         Text(
                             text = "Matching Results",
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.displaySmall,
+                            color = PrimaryText
                         )
                         Text(
                             text = "Auto-matched against available fingerprints",
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SecondaryText
                         )
                         // TODO: Show matching results when implemented
                         Text(
                             text = "No contact-based fingerprints available",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            color = TertiaryText
                         )
                     }
                 }
@@ -238,67 +314,72 @@ fun QualityScreen(
 fun LivenessResultCard(livenessResult: LivenessResult) {
     val isLive = livenessResult.isLive
     val confidence = livenessResult.confidence
-    val statusColor = if (isLive) Color(0xFF4CAF50) else Color(0xFFF44336)
+    val statusColor = if (isLive) SuccessGreen else DangerRed
     val statusText = if (isLive) "LIVE" else "SPOOF DETECTED"
     val statusIcon = if (isLive) "✓" else "⚠"
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = BorderRadius.Large,
         colors = CardDefaults.cardColors(
             containerColor = statusColor.copy(alpha = 0.1f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = Elevation.Card
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.CardPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.MediumGap)
         ) {
             Text(
                 text = "Liveness Detection (Track-D)",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                style = MaterialTheme.typography.displaySmall,
+                color = PrimaryText
             )
             
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
             ) {
                 Text(
                     text = statusIcon,
-                    fontSize = 24.sp,
+                    style = MaterialTheme.typography.displayMedium,
                     color = statusColor
                 )
                 Text(
                     text = statusText,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    style = MaterialTheme.typography.displaySmall,
                     color = statusColor
                 )
             }
             
             Text(
                 text = "Confidence: ${(confidence * 100).toInt()}%",
-                fontSize = 16.sp
+                style = MaterialTheme.typography.headlineLarge,
+                color = PrimaryText
             )
             
             LinearProgressIndicator(
-                progress = confidence,
+                progress = { confidence },
                 modifier = Modifier.fillMaxWidth(),
                 color = statusColor,
                 trackColor = statusColor.copy(alpha = 0.2f)
             )
             
-            Divider()
+            Divider(color = BorderGray)
             
             // Individual scores
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "Individual Scores:",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = PrimaryText
                 )
                 LivenessMetricRow("Motion", livenessResult.motionScore)
                 LivenessMetricRow("Texture", livenessResult.textureScore)
@@ -309,7 +390,7 @@ fun LivenessResultCard(livenessResult: LivenessResult) {
                 Text(
                     text = "Warning: Spoof detected. This may be a photo or print.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFF44336)
+                    color = DangerRed
                 )
             }
         }
@@ -325,21 +406,23 @@ fun LivenessMetricRow(label: String, score: Float) {
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            color = PrimaryText
         )
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.SmallGap),
             verticalAlignment = Alignment.CenterVertically
         ) {
             LinearProgressIndicator(
-                progress = score,
+                progress = { score },
                 modifier = Modifier.width(100.dp),
-                color = if (score > 0.5f) Color(0xFF4CAF50) else Color(0xFFF44336),
-                trackColor = Color.Gray.copy(alpha = 0.2f)
+                color = if (score > 0.5f) SuccessGreen else DangerRed,
+                trackColor = BorderGray.copy(alpha = 0.2f)
             )
             Text(
                 text = "${(score * 100).toInt()}%",
                 style = MaterialTheme.typography.bodySmall,
+                color = SecondaryText,
                 modifier = Modifier.width(40.dp)
             )
         }
@@ -349,47 +432,52 @@ fun LivenessMetricRow(label: String, score: Float) {
 @Composable
 fun OverallQualityCard(qualityResult: QualityResult) {
     val isPass = qualityResult.isPass
-    val statusColor = if (isPass) Color(0xFF4CAF50) else Color(0xFFF44336)
+    val statusColor = if (isPass) SuccessGreen else DangerRed
     val statusText = if (isPass) "PASS" else "FAIL"
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = BorderRadius.Large,
         colors = CardDefaults.cardColors(
             containerColor = statusColor.copy(alpha = 0.1f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = Elevation.Card
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.CardPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.MediumGap)
         ) {
             Text(
                 text = statusText,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.displaySmall,
                 color = statusColor
             )
             
             Text(
                 text = "Overall: ${String.format("%.1f%%", qualityResult.overallScore * 100)}",
-                fontSize = 18.sp
+                style = MaterialTheme.typography.displaySmall,
+                color = PrimaryText
             )
             
             LinearProgressIndicator(
                 progress = { qualityResult.overallScore },
                 modifier = Modifier.fillMaxWidth(),
-                color = statusColor
+                color = statusColor,
+                trackColor = statusColor.copy(alpha = 0.2f)
             )
             
             // Display failure reasons if quality check failed
             if (!isPass && qualityResult.failureReasons.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Divider()
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.SmallGap))
+                Divider(color = BorderGray)
+                Spacer(modifier = Modifier.height(Spacing.SmallGap))
                 Text(
                     text = "Issues found:",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.headlineLarge,
                     color = statusColor
                 )
                 qualityResult.failureReasons.forEach { reason ->
@@ -403,12 +491,12 @@ fun OverallQualityCard(qualityResult: QualityResult) {
                         Text(
                             text = "• ",
                             color = statusColor,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
                             text = reason,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = PrimaryText
                         )
                     }
                 }
@@ -423,24 +511,35 @@ fun QualityMetricCard(
     score: Float
 ) {
     val isPass = score >= 0.5f
-    val statusColor = if (isPass) Color(0xFF4CAF50) else Color(0xFFFF9800)
+    val statusColor = if (isPass) SuccessGreen else WarningOrange
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = BorderRadius.Large,
+        colors = CardDefaults.cardColors(
+            containerColor = BackgroundWhite
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = Elevation.Card
+        )
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(Spacing.CardPadding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.SmallGap)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = title,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.displaySmall,
+                    color = PrimaryText
                 )
                 Text(
                     text = "${String.format("%.1f%%", score * 100)}",
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.displaySmall,
                     color = statusColor
                 )
             }
@@ -448,7 +547,8 @@ fun QualityMetricCard(
             LinearProgressIndicator(
                 progress = { score },
                 modifier = Modifier.fillMaxWidth(),
-                color = statusColor
+                color = statusColor,
+                trackColor = statusColor.copy(alpha = 0.2f)
             )
         }
     }

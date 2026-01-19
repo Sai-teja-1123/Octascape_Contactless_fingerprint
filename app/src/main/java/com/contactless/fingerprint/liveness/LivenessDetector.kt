@@ -81,29 +81,27 @@ class LivenessDetector {
             }
             
             // Step 4: Combine scores with weighted average
-            // Adjusted weights: texture and consistency are more reliable
+            // BALANCED: Screen detection is important, but texture is primary for real fingers
             // Motion can be low for still fingers, so reduce its weight
-            // NEW: Include photo detection scores
             val weights = if (frames.size >= 2) {
-                // Multi-frame: texture and photo detection are primary
-                // Reduced consistency weight since it's unstable for still fingers
+                // Multi-frame: texture is primary, screen detection is important for spoofs
                 mapOf(
-                    "motion" to 0.20f,  // Reduced further
-                    "texture" to 0.30f,  // Increased (more reliable)
-                    "consistency" to 0.10f,  // Reduced significantly (unstable for still fingers)
-                    "compression" to 0.20f,  // Increased: Compression artifact detection (very reliable)
-                    "screen" to 0.10f,  // Screen pattern detection
+                    "motion" to 0.15f,  // Reduced (still fingers have low motion)
+                    "texture" to 0.30f,  // Primary indicator (most reliable)
+                    "consistency" to 0.15f,  // Moderate weight
+                    "compression" to 0.15f,  // Moderate weight
+                    "screen" to 0.15f,  // Increased: Screen detection is important
                     "textureVariation" to 0.10f  // Multi-frame texture variation
                 )
             } else {
-                // Single frame: texture and photo detection are primary
+                // Single frame: texture is primary, screen detection important
                 mapOf(
                     "motion" to 0.0f,
-                    "texture" to 0.40f,
+                    "texture" to 0.40f,  // Primary indicator
                     "consistency" to 0.20f,
-                    "compression" to 0.25f,  // NEW: Very important for single frame
-                    "screen" to 0.10f,  // NEW
-                    "textureVariation" to 0.05f  // NEW: Less reliable with single frame
+                    "compression" to 0.20f,  // Moderate weight
+                    "screen" to 0.15f,  // Increased: Screen detection is important
+                    "textureVariation" to 0.05f  // Less reliable with single frame
                 )
             }
             
@@ -123,58 +121,82 @@ class LivenessDetector {
             // Priority 2: Boost real fingers generously
             // Priority 3: Use adaptive threshold but more lenient
             
-            // Only penalize if VERY strong spoof indicators (much stricter thresholds)
-            // Real fingers might have some compression-like patterns, so be careful
-            if (compressionArtifactScore < 0.15f || screenPatternScore < 0.15f) {
-                // VERY strong compression or screen artifacts = likely photo
-                combinedConfidence = (combinedConfidence * 0.7f).coerceIn(0f, 1f)
-                Log.d("LivenessDetector", "Very strong spoof indicators: compression=$compressionArtifactScore, screen=$screenPatternScore")
-            } else if (compressionArtifactScore < 0.25f || screenPatternScore < 0.25f) {
-                // Strong spoof indicators
-                combinedConfidence = (combinedConfidence * 0.85f).coerceIn(0f, 1f)
+            // BALANCED: Stricter for screen patterns (screens are common spoof), lenient for compression
+            // Screen photos are a major threat, so detect them more aggressively
+            if (screenPatternScore < 0.20f) {
+                // Strong screen patterns detected = likely screen photo
+                combinedConfidence = (combinedConfidence * 0.6f).coerceIn(0f, 1f)
+                Log.d("LivenessDetector", "Strong screen patterns detected: screen=$screenPatternScore")
+            } else if (screenPatternScore < 0.35f) {
+                // Moderate screen patterns = possibly screen
+                combinedConfidence = (combinedConfidence * 0.75f).coerceIn(0f, 1f)
+                Log.d("LivenessDetector", "Moderate screen patterns: screen=$screenPatternScore")
+            }
+            
+            // Compression artifacts: Only penalize if very strong (more lenient)
+            if (compressionArtifactScore < 0.10f) {
+                // EXTREMELY strong compression artifacts = likely photo
+                combinedConfidence = (combinedConfidence * 0.8f).coerceIn(0f, 1f)
+                Log.d("LivenessDetector", "Extremely strong compression artifacts: compression=$compressionArtifactScore")
+            } else if (compressionArtifactScore < 0.15f) {
+                // Very strong compression (less penalty)
+                combinedConfidence = (combinedConfidence * 0.9f).coerceIn(0f, 1f)
             }
             
             // Texture variation: Only penalize if EXTREMELY identical (photos are nearly perfect)
-            if (textureVariationScore < 0.15f && frames.size >= 2) {
+            if (textureVariationScore < 0.10f && frames.size >= 2) {
                 // Texture is extremely identical = likely photo
-                combinedConfidence = (combinedConfidence * 0.75f).coerceIn(0f, 1f)
+                combinedConfidence = (combinedConfidence * 0.8f).coerceIn(0f, 1f)
                 Log.d("LivenessDetector", "Extremely identical texture: score=$textureVariationScore")
             }
             
-            // Boost real fingers generously - if texture/motion/consistency are good
-            if (textureScore > 0.4f && (motionScore > 0.3f || consistencyScore > 0.4f)) {
-                // Good texture + motion/consistency = likely real
-                combinedConfidence = (combinedConfidence * 1.15f).coerceIn(0f, 1f)
+            // Boost real fingers GENEROUSLY - if texture is decent
+            if (textureScore > 0.35f) {
+                // Good texture = likely real (even without motion)
+                combinedConfidence = (combinedConfidence * 1.2f).coerceIn(0f, 1f)
+                Log.d("LivenessDetector", "Applied texture boost: texture=$textureScore")
+            }
+            
+            // Boost if texture + motion/consistency are good
+            if (textureScore > 0.35f && (motionScore > 0.25f || consistencyScore > 0.35f)) {
+                // Good texture + motion/consistency = definitely real
+                combinedConfidence = (combinedConfidence * 1.25f).coerceIn(0f, 1f)
                 Log.d("LivenessDetector", "Applied real-finger boost: texture=$textureScore, motion=$motionScore, consistency=$consistencyScore")
             }
             
             // Special handling for still finger (low motion but good texture)
-            if (motionScore < 0.3f && textureScore > 0.4f && compressionArtifactScore > 0.3f && screenPatternScore > 0.3f) {
-                // Still finger with good texture and no strong spoof indicators = likely real
-                combinedConfidence = (combinedConfidence * 1.2f).coerceIn(0f, 1f)
-                Log.d("LivenessDetector", "Applied still-finger boost: motion=$motionScore, texture=$textureScore")
+            // IMPORTANT: Only boost if NO screen patterns detected (screens can have good texture)
+            if (motionScore < 0.3f && textureScore > 0.35f && compressionArtifactScore > 0.25f && screenPatternScore > 0.40f) {
+                // Still finger with good texture and no screen patterns = likely real
+                combinedConfidence = (combinedConfidence * 1.3f).coerceIn(0f, 1f)
+                Log.d("LivenessDetector", "Applied still-finger boost: motion=$motionScore, texture=$textureScore, screen=$screenPatternScore")
             }
             
             // Additional boost if multiple good indicators
             val goodIndicators = listOf(
-                textureScore > 0.4f,
-                consistencyScore > 0.4f,
-                compressionArtifactScore > 0.4f,
-                screenPatternScore > 0.4f,
-                if (frames.size >= 2) textureVariationScore > 0.3f else true
+                textureScore > 0.35f,
+                consistencyScore > 0.35f,
+                compressionArtifactScore > 0.3f,
+                screenPatternScore > 0.3f,
+                if (frames.size >= 2) textureVariationScore > 0.25f else true
             ).count { it }
             
-            if (goodIndicators >= 3 && combinedConfidence < 0.5f) {
-                // Multiple good indicators = likely real
-                combinedConfidence = (combinedConfidence * 1.1f).coerceIn(0f, 1f)
+            if (goodIndicators >= 2) {
+                // Multiple good indicators = likely real (boost even if confidence is already high)
+                combinedConfidence = (combinedConfidence * 1.15f).coerceIn(0f, 1f)
+                Log.d("LivenessDetector", "Applied multi-indicator boost: $goodIndicators good indicators")
             }
             
             // Step 5: Make final decision with balanced threshold
-            // More lenient: Only use higher threshold if VERY strong spoof indicators
-            val spoofThreshold = if (compressionArtifactScore < 0.15f || screenPatternScore < 0.15f || (frames.size >= 2 && textureVariationScore < 0.15f)) {
-                0.45f // Slightly higher threshold only for very strong spoof indicators
-            } else {
-                0.30f // Lower threshold for real fingers (more lenient)
+            // Stricter for screen patterns, lenient for real fingers without screen patterns
+            val spoofThreshold = when {
+                // Screen patterns detected: Stricter threshold
+                screenPatternScore < 0.20f -> 0.50f  // Strong screen patterns = higher threshold
+                screenPatternScore < 0.35f -> 0.45f  // Moderate screen patterns = moderate threshold
+                // Other spoof indicators
+                compressionArtifactScore < 0.10f || (frames.size >= 2 && textureVariationScore < 0.10f) -> 0.40f
+                // No strong spoof indicators: Lenient for real fingers
+                else -> 0.25f  // Low threshold for real fingers (lenient)
             }
             
             val isLive = combinedConfidence >= spoofThreshold
@@ -1091,33 +1113,37 @@ class LivenessDetector {
                 // Method 3: Enhanced frequency-based moiré detection
                 val frequencyMoireScore = detectFrequencyMoire(gray)
                 
-                // Combine: Be more lenient - only flag as screen if VERY strong indicators
-                // Real fingers might have some patterns, so be careful
+                // Combine: More sensitive to screen patterns
+                // Screens create detectable regular patterns and moiré
                 val screenScore = when {
-                    // VERY strong indicators from multiple methods
+                    // VERY strong indicators from multiple methods = definitely screen
                     (horizontalPattern > 0.7 || verticalPattern > 0.7) && (moireScore > 0.6 || frequencyMoireScore > 0.7) -> {
                         // Very strong screen patterns = likely screen
+                        0.10f
+                    }
+                    // Strong regular patterns = likely screen
+                    horizontalPattern > 0.7 || verticalPattern > 0.7 -> {
                         0.15f
                     }
-                    horizontalPattern > 0.7 || verticalPattern > 0.7 -> {
-                        // Very strong regular patterns = likely screen
+                    // Strong frequency moiré = likely screen
+                    frequencyMoireScore > 0.75 -> {
+                        0.20f
+                    }
+                    // Moderate-strong patterns = possibly screen
+                    horizontalPattern > 0.6 || verticalPattern > 0.6 || moireScore > 0.65 -> {
                         0.25f
                     }
-                    frequencyMoireScore > 0.75 -> {
-                        // Very strong frequency moiré = likely screen
-                        0.3f
-                    }
-                    horizontalPattern > 0.6 || verticalPattern > 0.6 || moireScore > 0.65 -> {
-                        // Strong patterns = possibly screen
-                        0.4f
-                    }
+                    // Moderate patterns = possibly screen
                     horizontalPattern > 0.5 || verticalPattern > 0.5 || moireScore > 0.55 || frequencyMoireScore > 0.6 -> {
-                        // Moderate-strong patterns
-                        0.5f
+                        0.35f
+                    }
+                    // Weak patterns = uncertain
+                    horizontalPattern > 0.4 || verticalPattern > 0.4 || moireScore > 0.45 || frequencyMoireScore > 0.5 -> {
+                        0.50f
                     }
                     else -> {
-                        // No strong patterns = likely real
-                        0.75f
+                        // No patterns = likely real
+                        0.80f
                     }
                 }
                 

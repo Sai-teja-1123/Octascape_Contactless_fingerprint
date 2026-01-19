@@ -7,6 +7,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.contactless.fingerprint.ui.components.InteractiveCard
+import com.contactless.fingerprint.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -17,31 +19,42 @@ fun HomeScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Contactless Fingerprint") })
+            TopAppBar(
+                title = { 
+                    Text(
+                        "Contactless Fingerprint",
+                        style = MaterialTheme.typography.displayMedium
+                    ) 
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
         }
     ) { paddingValues ->
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
+                .padding(Spacing.ScreenPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.LargeGap)
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(Spacing.ElementMargin))
 
             Text(
                 text = "Contactless Fingerprint",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.displayLarge,
+                color = PrimaryText
             )
 
             Text(
                 text = "Capture, enhance, assess quality, and match",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyLarge,
+                color = SecondaryText
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.LargeGap))
 
             FeatureCard(
                 title = "Start Capture",
@@ -67,23 +80,19 @@ fun FeatureCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    InteractiveCard(
         onClick = onClick,
         modifier = modifier
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.displaySmall,
+            color = PrimaryText
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = SecondaryText
+        )
     }
 }
