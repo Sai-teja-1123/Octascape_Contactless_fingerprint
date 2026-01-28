@@ -3,15 +3,24 @@ package com.contactless.fingerprint.ui.screens
 import android.Manifest
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -265,71 +274,15 @@ fun CameraScreen(
                             }
                         )
                         
-                        // Finger placement box overlay
+                        // Finger placement box overlay with animations
                         if (cameraInitialized && previewView != null) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .zIndex(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // Finger placement box
-                                Box(
-                                    modifier = Modifier
-                                        .size(300.dp, 220.dp)
-                                        .border(
-                                            width = 3.dp,
-                                            color = BackgroundWhite.copy(alpha = 0.9f),
-                                            shape = BorderRadius.Medium
-                                        )
-                                )
-                                
-                                // Corner indicators for better visibility
-                                Box(
-                                    modifier = Modifier
-                                        .size(300.dp, 220.dp)
-                                ) {
-                                    // Top-left corner
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .size(20.dp)
-                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
-                                    )
-                                    // Top-right corner
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .size(20.dp)
-                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
-                                    )
-                                    // Bottom-left corner
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .size(20.dp)
-                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
-                                    )
-                                    // Bottom-right corner
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .size(20.dp)
-                                            .border(3.dp, BackgroundWhite, BorderRadius.Small)
-                                    )
-                                }
-                            }
-                            
-                            // Hint text below box
-                            Text(
-                                text = "Place your finger inside the box",
-                                color = BackgroundWhite.copy(alpha = 0.9f),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 240.dp)
-                                    .zIndex(1f),
-                                textAlign = TextAlign.Center
+                            FingerPlacementBox(
+                                isFingerDetected = isFingerDetected,
+                                isFrameCollectionReady = isFrameCollectionReady,
+                                frameCollectionProgress = frameCollectionStartTime?.let { 
+                                    ((System.currentTimeMillis() - it).toFloat() / frameCollectionDuration.toFloat()).coerceIn(0f, 1f)
+                                } ?: 0f,
+                                isCheckingLiveness = isCheckingLiveness
                             )
                         }
                         
@@ -379,74 +332,51 @@ fun CameraScreen(
                             }
                         }
                         
-                        // Finger detection indicator overlay
+                        // Animated finger detection indicator
                         if (isFingerDetected && cameraInitialized && !isCapturing) {
-                            Box(
+                            AnimatedFingerDetectedIndicator(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .zIndex(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "✓",
-                                    color = SuccessGreen,
-                                    style = MaterialTheme.typography.displayLarge
-                                )
-                            }
+                                    .zIndex(1f)
+                            )
+                        }
+                        
+                        // Liveness status badge (top-right corner)
+                        if (preCaptureLivenessResult != null && cameraInitialized && !isCapturing) {
+                            LivenessStatusBadge(
+                                livenessResult = preCaptureLivenessResult!!,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(16.dp)
+                                    .zIndex(2f)
+                            )
                         }
                     }
                 }
             }
 
-            // Controls
+            // Controls with status badge
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(16.dp),
+                    .padding(Spacing.CardPadding),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(Spacing.MediumGap)
             ) {
-                Text(
-                    text = when {
-                        !hasPermission -> "Camera permission needed"
-                        !cameraInitialized && cameraError == null -> "Initializing..."
-                        cameraError != null -> "Error: $cameraError"
-                        isCapturing -> "Capturing image..."
-                        isFingerDetected && !isFrameCollectionReady -> {
-                            val elapsed = frameCollectionStartTime?.let { System.currentTimeMillis() - it } ?: 0L
-                            val remaining = (frameCollectionDuration - elapsed).coerceAtLeast(0L)
-                            if (isCheckingLiveness) {
-                                "Checking liveness..."
-                            } else {
-                                "Collecting frames... (${(remaining / 1000f).coerceAtLeast(0f).toInt()}s)"
-                            }
-                        }
-                        isFingerDetected -> {
-                            when {
-                                preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive -> {
-                                    "⚠ SPOOF DETECTED - Capture not recommended"
-                                }
-                                preCaptureLivenessResult != null -> {
-                                    "Finger detected - Ready to capture (Live: ${(preCaptureLivenessResult!!.confidence * 100).toInt()}%)"
-                                }
-                                else -> {
-                                    "Finger detected (${(fingerDetectionConfidence * 100).toInt()}%) - Ready to capture"
-                                }
-                            }
-                        }
-                        else -> "Position finger in the box"
-                    },
-                    textAlign = TextAlign.Center,
-                    color = when {
-                        !hasPermission -> MaterialTheme.colorScheme.error
-                        cameraError != null -> MaterialTheme.colorScheme.error
-                        preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive -> {
-                            MaterialTheme.colorScheme.error // Red for spoof
-                        }
-                        cameraInitialized -> MaterialTheme.colorScheme.onSurface
-                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    }
+                // Status badge/chip
+                StatusChip(
+                    hasPermission = hasPermission,
+                    cameraInitialized = cameraInitialized,
+                    cameraError = cameraError,
+                    isCapturing = isCapturing,
+                    isFingerDetected = isFingerDetected,
+                    isFrameCollectionReady = isFrameCollectionReady,
+                    isCheckingLiveness = isCheckingLiveness,
+                    frameCollectionStartTime = frameCollectionStartTime,
+                    frameCollectionDuration = frameCollectionDuration,
+                    fingerDetectionConfidence = fingerDetectionConfidence,
+                    preCaptureLivenessResult = preCaptureLivenessResult
                 )
                 
                 // Step 5.3: Show spoof warning if detected
@@ -585,5 +515,281 @@ fun CameraScreen(
                 }
             }
         }
+    }
+}
+
+// Animated Finger Placement Box with Progress Indicator
+@Composable
+fun FingerPlacementBox(
+    isFingerDetected: Boolean,
+    isFrameCollectionReady: Boolean,
+    frameCollectionProgress: Float,
+    isCheckingLiveness: Boolean
+) {
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            isFrameCollectionReady -> SuccessGreen
+            isFingerDetected -> PrimaryBlue
+            else -> BackgroundWhite.copy(alpha = 0.9f)
+        },
+        animationSpec = tween(300, easing = AnimationEasing.StandardEasing),
+        label = "border_color"
+    )
+    
+    val borderWidth by animateFloatAsState(
+        targetValue = if (isFingerDetected) 4f else 3f,
+        animationSpec = tween(300, easing = AnimationEasing.StandardEasing),
+        label = "border_width"
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(1f),
+        contentAlignment = Alignment.Center
+    ) {
+        // Main finger placement box
+        Box(
+            modifier = Modifier
+                .size(300.dp, 220.dp)
+                .border(
+                    width = borderWidth.dp,
+                    color = borderColor,
+                    shape = BorderRadius.Medium
+                )
+        )
+        
+        // Corner indicators with animation
+        Box(
+            modifier = Modifier.size(300.dp, 220.dp)
+        ) {
+            val cornerSize = if (isFingerDetected) 24.dp else 20.dp
+            val cornerBorderWidth = if (isFingerDetected) 4.dp else 3.dp
+            
+            // Top-left corner
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .size(cornerSize)
+                    .border(cornerBorderWidth, borderColor, BorderRadius.Small)
+            )
+            // Top-right corner
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(cornerSize)
+                    .border(cornerBorderWidth, borderColor, BorderRadius.Small)
+            )
+            // Bottom-left corner
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .size(cornerSize)
+                    .border(cornerBorderWidth, borderColor, BorderRadius.Small)
+            )
+            // Bottom-right corner
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(cornerSize)
+                    .border(cornerBorderWidth, borderColor, BorderRadius.Small)
+            )
+        }
+        
+        // Circular progress indicator around box (when collecting frames)
+        if (isFingerDetected && !isFrameCollectionReady && !isCheckingLiveness) {
+            CircularProgressIndicator(
+                progress = { frameCollectionProgress },
+                modifier = Modifier
+                    .size(340.dp, 260.dp)
+                    .alpha(0.8f),
+                color = PrimaryBlue,
+                trackColor = PrimaryBlue.copy(alpha = 0.2f),
+                strokeWidth = 4.dp
+            )
+        }
+        
+        // Hint text below box
+        Text(
+            text = when {
+                isCheckingLiveness -> "Checking liveness..."
+                isFrameCollectionReady -> "Ready to capture"
+                isFingerDetected -> "Hold still..."
+                else -> "Place your finger inside the box"
+            },
+            color = BackgroundWhite.copy(alpha = 0.9f),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 240.dp),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+// Animated Finger Detected Indicator (Pulsing Ring)
+@Composable
+fun AnimatedFingerDetectedIndicator(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "finger_detected")
+    
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = AnimationEasing.StandardEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 0.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = AnimationEasing.StandardEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        // Pulsing ring
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .scale(scale)
+                .alpha(alpha)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            SuccessGreen.copy(alpha = 0.6f),
+                            SuccessGreen.copy(alpha = 0.1f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+        
+        // Checkmark icon
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = "Finger detected",
+            modifier = Modifier.size(48.dp),
+            tint = SuccessGreen
+        )
+    }
+}
+
+// Liveness Status Badge
+@Composable
+fun LivenessStatusBadge(
+    livenessResult: LivenessResult,
+    modifier: Modifier = Modifier
+) {
+    val isLive = livenessResult.isLive
+    val badgeColor = if (isLive) SuccessGreen else DangerRed
+    val badgeText = if (isLive) "LIVE" else "SPOOF"
+    val icon = if (isLive) Icons.Default.CheckCircle else Icons.Default.Warning
+    
+    Surface(
+        modifier = modifier,
+        shape = BorderRadius.Medium,
+        color = badgeColor.copy(alpha = 0.2f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = badgeColor
+            )
+            Text(
+                text = badgeText,
+                style = MaterialTheme.typography.labelMedium,
+                color = badgeColor,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+// Status Chip Component
+@Composable
+fun StatusChip(
+    hasPermission: Boolean,
+    cameraInitialized: Boolean,
+    cameraError: String?,
+    isCapturing: Boolean,
+    isFingerDetected: Boolean,
+    isFrameCollectionReady: Boolean,
+    isCheckingLiveness: Boolean,
+    frameCollectionStartTime: Long?,
+    frameCollectionDuration: Long,
+    fingerDetectionConfidence: Float,
+    preCaptureLivenessResult: LivenessResult?
+) {
+    val statusText = when {
+        !hasPermission -> "Camera permission needed"
+        !cameraInitialized && cameraError == null -> "Initializing..."
+        cameraError != null -> "Error: $cameraError"
+        isCapturing -> "Capturing image..."
+        isFingerDetected && !isFrameCollectionReady -> {
+            val elapsed = frameCollectionStartTime?.let { System.currentTimeMillis() - it } ?: 0L
+            val remaining = (frameCollectionDuration - elapsed).coerceAtLeast(0L)
+            if (isCheckingLiveness) {
+                "Checking liveness..."
+            } else {
+                "Collecting frames... (${(remaining / 1000f).coerceAtLeast(0f).toInt()}s)"
+            }
+        }
+        isFingerDetected -> {
+            when {
+                preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive -> {
+                    "⚠ SPOOF DETECTED"
+                }
+                preCaptureLivenessResult != null -> {
+                    "Ready (Live: ${(preCaptureLivenessResult!!.confidence * 100).toInt()}%)"
+                }
+                else -> {
+                    "Finger detected (${(fingerDetectionConfidence * 100).toInt()}%)"
+                }
+            }
+        }
+        else -> "Position finger in the box"
+    }
+    
+    val statusColor = when {
+        !hasPermission -> MaterialTheme.colorScheme.error
+        cameraError != null -> MaterialTheme.colorScheme.error
+        preCaptureLivenessResult != null && !preCaptureLivenessResult!!.isLive -> DangerRed
+        isFrameCollectionReady -> SuccessGreen
+        isFingerDetected -> PrimaryBlue
+        cameraInitialized -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+    }
+    
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = BorderRadius.Medium,
+        color = statusColor.copy(alpha = 0.1f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.3f))
+    ) {
+        Text(
+            text = statusText,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyMedium,
+            color = statusColor,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

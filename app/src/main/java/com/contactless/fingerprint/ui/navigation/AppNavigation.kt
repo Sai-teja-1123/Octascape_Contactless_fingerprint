@@ -14,11 +14,13 @@ import com.contactless.fingerprint.liveness.LivenessResult
 import com.contactless.fingerprint.quality.QualityResult
 import com.contactless.fingerprint.ui.screens.CameraScreen
 import com.contactless.fingerprint.ui.screens.HomeScreen
+import com.contactless.fingerprint.ui.screens.IdSelectionScreen
 import com.contactless.fingerprint.ui.screens.MatchingScreen
 import com.contactless.fingerprint.ui.screens.QualityScreen
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
+    object IdSelection : Screen("id_selection")
     object Camera : Screen("camera")
     object Quality : Screen("quality")
     object Matching : Screen("matching")
@@ -33,6 +35,7 @@ fun AppNavigation(
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) } // Enhanced bitmap
     var qualityResult by remember { mutableStateOf<QualityResult?>(null) }
     var livenessResult by remember { mutableStateOf<LivenessResult?>(null) }
+    var selectedEnrollmentId by remember { mutableStateOf<String?>(null) } // Store selected enrollment ID
 
     NavHost(
         navController = navController,
@@ -41,10 +44,23 @@ fun AppNavigation(
         composable(Screen.Home.route) {
             HomeScreen(
                 onCaptureClick = {
-                    navController.navigate(Screen.Camera.route)
+                    // Navigate to ID selection screen
+                    navController.navigate(Screen.IdSelection.route)
                 },
                 onMatchingClick = {
                     navController.navigate(Screen.Matching.route)
+                }
+            )
+        }
+
+        composable(Screen.IdSelection.route) {
+            IdSelectionScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onIdSelected = { enrollmentId ->
+                    selectedEnrollmentId = enrollmentId
+                    navController.navigate(Screen.Camera.route)
                 }
             )
         }
@@ -71,29 +87,39 @@ fun AppNavigation(
                 capturedBitmap = capturedBitmap,
                 qualityResult = qualityResult,
                 livenessResult = livenessResult,
+                selectedEnrollmentId = selectedEnrollmentId,
                 onBackClick = {
-                    // Clear captured data when going back
+                    navController.popBackStack()
+                },
+                onNewCaptureClick = {
+                    // Clear data and go to ID selection
                     rawBitmap = null
                     capturedBitmap = null
                     qualityResult = null
                     livenessResult = null
-                    navController.popBackStack()
+                    selectedEnrollmentId = null
+                    navController.navigate(Screen.IdSelection.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
                 },
-                onMatchingClick = {
-                    // Navigate to Matching without clearing the bitmap
-                    navController.navigate(Screen.Matching.route)
+                onHomeClick = {
+                    // Clear all data and go to home
+                    rawBitmap = null
+                    capturedBitmap = null
+                    qualityResult = null
+                    livenessResult = null
+                    selectedEnrollmentId = null
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
                 }
             )
         }
 
         composable(Screen.Matching.route) {
             MatchingScreen(
-                contactlessBitmap = capturedBitmap, // Pass captured bitmap if available
                 onBackClick = {
                     navController.popBackStack()
-                },
-                onCaptureClick = {
-                    navController.navigate(Screen.Camera.route)
                 }
             )
         }

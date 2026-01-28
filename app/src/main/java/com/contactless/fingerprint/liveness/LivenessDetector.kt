@@ -187,19 +187,24 @@ class LivenessDetector {
                 Log.d("LivenessDetector", "Applied multi-indicator boost: $goodIndicators good indicators")
             }
             
-            // Step 5: Make final decision with balanced threshold
-            // Stricter for screen patterns, lenient for real fingers without screen patterns
-            val spoofThreshold = when {
-                // Screen patterns detected: Stricter threshold
-                screenPatternScore < 0.20f -> 0.50f  // Strong screen patterns = higher threshold
-                screenPatternScore < 0.35f -> 0.45f  // Moderate screen patterns = moderate threshold
-                // Other spoof indicators
-                compressionArtifactScore < 0.10f || (frames.size >= 2 && textureVariationScore < 0.10f) -> 0.40f
-                // No strong spoof indicators: Lenient for real fingers
-                else -> 0.25f  // Low threshold for real fingers (lenient)
-            }
+            // Step 5: Make final decision with a simple global threshold.
+            // NOTE: In your current data, screenPatternScore and compressionArtifactScore
+            // do not cleanly separate real fingers from screen photos, so using them
+            // inside the threshold raised too many false rejections for real fingers.
+            // We therefore use a single, more lenient global threshold here.
+            val spoofThreshold = 0.40f
             
-            val isLive = combinedConfidence >= spoofThreshold
+            var isLive = combinedConfidence >= spoofThreshold
+            
+            // Simple extra gate: if we see VERY high texture variation across frames,
+            // treat it as a strong spoof indicator (photos/screens with changing content).
+            // Based on your samples:
+            // - Real fingers: textureVariationScore ≈ 0.2
+            // - Screen photo (bad case): textureVariationScore ≈ 0.65
+            if (frames.size >= 2 && textureVariationScore > 0.6f && isLive) {
+                isLive = false
+                Log.d("LivenessDetector", "Texture-variation gate: forced spoof (textureVariation=$textureVariationScore)")
+            }
             
             Log.d("LivenessDetector", "Liveness result: isLive=$isLive, confidence=$combinedConfidence, threshold=$spoofThreshold")
             Log.d("LivenessDetector", "  - Motion: $motionScore")
@@ -1113,38 +1118,18 @@ class LivenessDetector {
                 // Method 3: Enhanced frequency-based moiré detection
                 val frequencyMoireScore = detectFrequencyMoire(gray)
                 
-                // Combine: More sensitive to screen patterns
-                // Screens create detectable regular patterns and moiré
+                // Combine: Tightened — screen photos get lower scores; "real" only when all sub-scores low
                 val screenScore = when {
-                    // VERY strong indicators from multiple methods = definitely screen
-                    (horizontalPattern > 0.7 || verticalPattern > 0.7) && (moireScore > 0.6 || frequencyMoireScore > 0.7) -> {
-                        // Very strong screen patterns = likely screen
-                        0.10f
-                    }
-                    // Strong regular patterns = likely screen
-                    horizontalPattern > 0.7 || verticalPattern > 0.7 -> {
-                        0.15f
-                    }
-                    // Strong frequency moiré = likely screen
-                    frequencyMoireScore > 0.75 -> {
-                        0.20f
-                    }
-                    // Moderate-strong patterns = possibly screen
-                    horizontalPattern > 0.6 || verticalPattern > 0.6 || moireScore > 0.65 -> {
-                        0.25f
-                    }
-                    // Moderate patterns = possibly screen
-                    horizontalPattern > 0.5 || verticalPattern > 0.5 || moireScore > 0.55 || frequencyMoireScore > 0.6 -> {
-                        0.35f
-                    }
-                    // Weak patterns = uncertain
-                    horizontalPattern > 0.4 || verticalPattern > 0.4 || moireScore > 0.45 || frequencyMoireScore > 0.5 -> {
-                        0.50f
-                    }
-                    else -> {
-                        // No patterns = likely real
-                        0.80f
-                    }
+                    (horizontalPattern > 0.7 || verticalPattern > 0.7) && (moireScore > 0.6 || frequencyMoireScore > 0.7) -> 0.10f
+                    horizontalPattern > 0.7 || verticalPattern > 0.7 -> 0.15f
+                    frequencyMoireScore > 0.75 -> 0.20f
+                    horizontalPattern > 0.6 || verticalPattern > 0.6 || moireScore > 0.65 -> 0.25f
+                    horizontalPattern > 0.5 || verticalPattern > 0.5 || moireScore > 0.55 || frequencyMoireScore > 0.6 -> 0.35f
+                    horizontalPattern > 0.4 || verticalPattern > 0.4 || moireScore > 0.45 || frequencyMoireScore > 0.5 -> 0.40f
+                    horizontalPattern > 0.35 || verticalPattern > 0.35 || moireScore > 0.40 || frequencyMoireScore > 0.45 -> 0.48f
+                    horizontalPattern > 0.28 || verticalPattern > 0.28 || moireScore > 0.32 || frequencyMoireScore > 0.38 -> 0.56f
+                    horizontalPattern > 0.22 || verticalPattern > 0.22 || moireScore > 0.28 || frequencyMoireScore > 0.32 -> 0.65f
+                    else -> 0.74f  // No clear patterns = likely real (tightened from 0.78)
                 }
                 
                 gradX.release()
